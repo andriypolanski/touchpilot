@@ -30,11 +30,24 @@ object AccessibilityBridge {
         return service?.typeIntoFocusedField(text) ?: false
     }
 
+    fun scrollForward(): Boolean {
+        return service?.scroll(forward = true) ?: false
+    }
+
+    fun scrollBackward(): Boolean {
+        return service?.scroll(forward = false) ?: false
+    }
+
     fun pressBack(): Boolean {
         return service?.pressBack() ?: false
     }
 
     fun pressHome(): Boolean {
         return service?.pressHome() ?: false
+    }
+
+    fun waitForText(text: String, timeoutMs: Long): Boolean {
+        if (text.isBlank()) return false
+        return service?.waitForText(text, timeoutMs) ?: false
     }
 }

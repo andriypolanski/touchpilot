@@ -27,9 +27,9 @@ Tools are the only way an agent may affect the Android device.
 - `press_home`: return to launcher.
 - `wait_for_ui`: wait for a screen change or expected text.
 
-The first Android spike implements `observe_screen`, `tap`, `type_text`,
-`press_back`, and `press_home` from the debug screen. These are not yet wired to
-an LLM agent loop.
+The first Android spike implements `observe_screen`, `open_app`, `tap`,
+`type_text`, `scroll`, `press_back`, `press_home`, and `wait_for_ui` from the
+debug screen. These are not yet wired to an LLM agent loop.
 
 ## Result Shape
 

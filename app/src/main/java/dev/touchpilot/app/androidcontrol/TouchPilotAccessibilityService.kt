@@ -60,12 +60,39 @@ class TouchPilotAccessibilityService : AccessibilityService() {
         return focused.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, args)
     }
 
+    fun scroll(forward: Boolean): Boolean {
+        val root = rootInActiveWindow ?: return false
+        val action = if (forward) {
+            AccessibilityNodeInfo.ACTION_SCROLL_FORWARD
+        } else {
+            AccessibilityNodeInfo.ACTION_SCROLL_BACKWARD
+        }
+
+        val scrollable = findNode(root) { candidate ->
+            candidate.isScrollable || candidate.actionList.any { it.id == action }
+        } ?: return false
+
+        return scrollable.performAction(action)
+    }
+
     fun pressBack(): Boolean {
         return performGlobalAction(GLOBAL_ACTION_BACK)
     }
 
     fun pressHome(): Boolean {
         return performGlobalAction(GLOBAL_ACTION_HOME)
+    }
+
+    fun waitForText(text: String, timeoutMs: Long): Boolean {
+        val deadline = System.currentTimeMillis() + timeoutMs.coerceIn(250L, 30_000L)
+        while (System.currentTimeMillis() < deadline) {
+            val root = rootInActiveWindow
+            if (root != null && containsText(root, text)) {
+                return true
+            }
+            Thread.sleep(150L)
+        }
+        return false
     }
 
     private fun StringBuilder.appendNode(
@@ -123,5 +150,14 @@ class TouchPilotAccessibilityService : AccessibilityService() {
             current = current.parent
         }
         return false
+    }
+
+    private fun containsText(node: AccessibilityNodeInfo, text: String): Boolean {
+        return findNode(node) { candidate ->
+            val label = candidate.text?.toString()
+                ?: candidate.contentDescription?.toString()
+                ?: ""
+            label.contains(text, ignoreCase = true)
+        } != null
     }
 }

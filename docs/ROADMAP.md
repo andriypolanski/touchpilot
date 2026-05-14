@@ -6,8 +6,10 @@
 - [x] Add AccessibilityService permission flow.
 - [x] Serialize current UI tree.
 - [x] Execute tap, type, back, and home from a debug screen.
-- [ ] Add scroll action.
-- [ ] Add local tool execution log.
+- [x] Add scroll action.
+- [x] Add local tool execution log.
+- [x] Add app launching by package or label.
+- [x] Add wait-for-text UI synchronization.
 
 ## Phase 1: Agent MVP
 

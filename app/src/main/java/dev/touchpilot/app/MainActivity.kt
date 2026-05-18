@@ -2,11 +2,14 @@ package dev.touchpilot.app
 
 import android.app.Activity
 import android.app.AlertDialog
+import android.content.Context
 import android.content.Intent
 import android.os.Bundle
 import android.provider.Settings
 import android.text.InputType
+import android.view.View
 import android.view.ViewGroup
+import android.view.inputmethod.InputMethodManager
 import android.widget.Button
 import android.widget.EditText
 import android.widget.LinearLayout
@@ -56,16 +59,19 @@ class MainActivity : Activity() {
         }
 
         val titleView = TextView(this).apply {
+            id = R.id.touchpilot_title
             text = "TouchPilot"
             textSize = 30f
         }
 
         statusView = TextView(this).apply {
+            id = R.id.touchpilot_status
             textSize = 16f
             setPadding(0, 24, 0, 24)
         }
 
         val enableButton = Button(this).apply {
+            id = R.id.open_accessibility_settings_button
             text = "Open Accessibility Settings"
             setOnClickListener {
                 startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
@@ -73,8 +79,10 @@ class MainActivity : Activity() {
         }
 
         val observeButton = Button(this).apply {
+            id = R.id.observe_screen_button
             text = "Observe Current Screen"
             setOnClickListener {
+                hideKeyboard(this)
                 refreshStatus()
                 outputView.text = toolExecutor.execute("observe_screen", emptyMap()).message
                 refreshExecutionLog()
@@ -82,26 +90,34 @@ class MainActivity : Activity() {
         }
 
         val appInput = EditText(this).apply {
+            id = R.id.open_app_input
             hint = "App package or launcher label"
             setSingleLine(true)
         }
 
         val openAppButton = Button(this).apply {
+            id = R.id.open_app_button
             text = "Open App"
             setOnClickListener {
+                hideKeyboard(appInput)
+                appInput.clearFocus()
                 val target = appInput.text.toString()
                 executeAndRender("open_app", mapOf("target" to target))
             }
         }
 
         val targetInput = EditText(this).apply {
+            id = R.id.tap_text_input
             hint = "Visible text to tap"
             setSingleLine(true)
         }
 
         val tapButton = Button(this).apply {
+            id = R.id.tap_text_button
             text = "Tap Text"
             setOnClickListener {
+                hideKeyboard(targetInput)
+                targetInput.clearFocus()
                 val target = targetInput.text.toString()
                 refreshStatus()
                 executeAndRender("tap", mapOf("text" to target))
@@ -109,14 +125,18 @@ class MainActivity : Activity() {
         }
 
         val typeInput = EditText(this).apply {
+            id = R.id.type_text_input
             hint = "Text to type into focused field"
             setSingleLine(true)
         }
 
         val typeButton = Button(this).apply {
+            id = R.id.type_text_button
             text = "Type Into Focused Field"
             setOnClickListener {
                 val value = typeInput.text.toString()
+                hideKeyboard(typeInput)
+                typeInput.requestFocus()
                 refreshStatus()
                 executeAndRender("type_text", mapOf("text" to value))
             }
@@ -127,16 +147,20 @@ class MainActivity : Activity() {
         }
 
         val backButton = Button(this).apply {
+            id = R.id.back_button
             text = "Back"
             setOnClickListener {
+                hideKeyboard(this)
                 refreshStatus()
                 executeAndRender("press_back", emptyMap())
             }
         }
 
         val homeButton = Button(this).apply {
+            id = R.id.home_button
             text = "Home"
             setOnClickListener {
+                hideKeyboard(this)
                 refreshStatus()
                 executeAndRender("press_home", emptyMap())
             }
@@ -150,16 +174,20 @@ class MainActivity : Activity() {
         }
 
         val scrollForwardButton = Button(this).apply {
+            id = R.id.scroll_down_button
             text = "Scroll Down"
             setOnClickListener {
+                hideKeyboard(this)
                 refreshStatus()
                 executeAndRender("scroll", mapOf("direction" to "forward"))
             }
         }
 
         val scrollBackwardButton = Button(this).apply {
+            id = R.id.scroll_up_button
             text = "Scroll Up"
             setOnClickListener {
+                hideKeyboard(this)
                 refreshStatus()
                 executeAndRender("scroll", mapOf("direction" to "backward"))
             }
@@ -169,13 +197,17 @@ class MainActivity : Activity() {
         scrollRow.addView(scrollBackwardButton, rowButtonParams())
 
         val waitInput = EditText(this).apply {
+            id = R.id.wait_for_text_input
             hint = "Text to wait for"
             setSingleLine(true)
         }
 
         val waitButton = Button(this).apply {
+            id = R.id.wait_for_text_button
             text = "Wait For Text"
             setOnClickListener {
+                hideKeyboard(waitInput)
+                waitInput.clearFocus()
                 val expectedText = waitInput.text.toString()
                 outputView.text = "Waiting for \"$expectedText\"..."
                 Thread {
@@ -199,6 +231,7 @@ class MainActivity : Activity() {
         }
 
         val providerUrlInput = EditText(this).apply {
+            id = R.id.agent_provider_url_input
             hint = "OpenAI-compatible chat completions URL"
             setSingleLine(true)
             setText(
@@ -210,12 +243,14 @@ class MainActivity : Activity() {
         }
 
         val modelInput = EditText(this).apply {
+            id = R.id.agent_model_input
             hint = "Model name"
             setSingleLine(true)
             setText(preferences.getString("provider_model", "gpt-5.2-mini"))
         }
 
         val apiKeyInput = EditText(this).apply {
+            id = R.id.agent_api_key_input
             hint = if (secretStore.hasApiKey()) {
                 "API key stored; leave blank to keep it"
             } else {
@@ -232,6 +267,7 @@ class MainActivity : Activity() {
         }
 
         val skillSpinner = Spinner(this).apply {
+            id = R.id.skill_spinner
             adapter = ArrayAdapter(
                 this@MainActivity,
                 android.R.layout.simple_spinner_item,
@@ -251,6 +287,7 @@ class MainActivity : Activity() {
         }
 
         val providerModeSpinner = Spinner(this).apply {
+            id = R.id.agent_provider_spinner
             adapter = ArrayAdapter(
                 this@MainActivity,
                 android.R.layout.simple_spinner_item,
@@ -263,14 +300,18 @@ class MainActivity : Activity() {
         }
 
         val taskInput = EditText(this).apply {
+            id = R.id.agent_task_input
             hint = "Agent task, e.g. observe the current screen"
             setSingleLine(false)
             minLines = 2
         }
 
         val runAgentButton = Button(this).apply {
+            id = R.id.run_agent_button
             text = "Run Agent Step Loop"
             setOnClickListener {
+                hideKeyboard(taskInput)
+                taskInput.clearFocus()
                 val apiKey = resolveApiKey(apiKeyInput, secretStore)
                 val providerConfig = ProviderConfig(
                     baseUrl = providerUrlInput.text.toString(),
@@ -321,17 +362,20 @@ class MainActivity : Activity() {
         }
 
         val mcpEndpointInput = EditText(this).apply {
+            id = R.id.mcp_endpoint_input
             hint = "MCP HTTP JSON-RPC endpoint"
             setSingleLine(true)
             setText(preferences.getString("mcp_endpoint", ""))
         }
 
         val mcpToolInput = EditText(this).apply {
+            id = R.id.mcp_tool_input
             hint = "MCP tool name"
             setSingleLine(true)
         }
 
         val mcpArgsInput = EditText(this).apply {
+            id = R.id.mcp_args_input
             hint = "MCP tool arguments JSON"
             setSingleLine(false)
             minLines = 2
@@ -343,8 +387,11 @@ class MainActivity : Activity() {
         }
 
         val listMcpToolsButton = Button(this).apply {
+            id = R.id.list_mcp_tools_button
             text = "List MCP Tools"
             setOnClickListener {
+                hideKeyboard(mcpEndpointInput)
+                mcpEndpointInput.clearFocus()
                 val endpoint = mcpEndpointInput.text.toString()
                 preferences.edit().putString("mcp_endpoint", endpoint).apply()
                 outputView.text = "Listing MCP tools..."
@@ -375,8 +422,11 @@ class MainActivity : Activity() {
         }
 
         val callMcpToolButton = Button(this).apply {
+            id = R.id.call_mcp_tool_button
             text = "Call MCP Tool"
             setOnClickListener {
+                hideKeyboard(mcpArgsInput)
+                mcpArgsInput.clearFocus()
                 val endpoint = mcpEndpointInput.text.toString()
                 val toolName = mcpToolInput.text.toString()
                 val argsText = mcpArgsInput.text.toString()
@@ -400,6 +450,7 @@ class MainActivity : Activity() {
         mcpButtonRow.addView(callMcpToolButton, rowButtonParams())
 
         outputView = TextView(this).apply {
+            id = R.id.output_view
             text = "Enable TouchPilot Control, then observe a screen."
             textSize = 13f
             setPadding(0, 24, 0, 0)
@@ -412,13 +463,16 @@ class MainActivity : Activity() {
         }
 
         executionLogView = TextView(this).apply {
+            id = R.id.execution_log_view
             text = ToolExecutionLog.render()
             textSize = 13f
         }
 
         val exportTraceButton = Button(this).apply {
+            id = R.id.export_debug_trace_button
             text = "Export Debug Trace"
             setOnClickListener {
+                hideKeyboard(this)
                 val file = exportDebugTrace()
                 outputView.text = "Debug trace exported: ${file.absolutePath}"
             }
@@ -494,6 +548,11 @@ class MainActivity : Activity() {
             ViewGroup.LayoutParams.WRAP_CONTENT,
             1f
         )
+    }
+
+    private fun hideKeyboard(anchor: View) {
+        val manager = getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
+        manager.hideSoftInputFromWindow(anchor.windowToken, 0)
     }
 
     private fun selectedSkill(skillSpinner: Spinner, skills: List<Skill>): Skill? {

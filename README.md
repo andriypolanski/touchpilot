@@ -100,4 +100,7 @@ Phase 4 adds an in-app MCP HTTP JSON-RPC client for initializing external MCP
 servers, listing tools, and calling tools with JSON arguments.
 Phase 5 adds a local agent-provider seam, an offline conservative local router
 for simple tool calls, and a runtime evaluation for ExecuTorch, LiteRT, and
-llama.cpp before embedding a full local model runtime.
+llama.cpp before embedding a full local model runtime. Phase 6 completes live
+emulator validation for the Android debug app, including accessibility
+connection, core Android tools, local-router selection, MCP UI reachability,
+debug trace export, and stable UI IDs for repeatable device checks.

@@ -11,10 +11,14 @@ import android.widget.Button
 import android.widget.EditText
 import android.widget.LinearLayout
 import android.widget.ScrollView
+import android.widget.ArrayAdapter
+import android.widget.Spinner
 import android.widget.TextView
 import dev.touchpilot.app.agent.AgentRunner
 import dev.touchpilot.app.agent.ProviderConfig
 import dev.touchpilot.app.androidcontrol.AccessibilityBridge
+import dev.touchpilot.app.memory.Skill
+import dev.touchpilot.app.memory.SkillStore
 import dev.touchpilot.app.security.ProviderSecretStore
 import dev.touchpilot.app.security.ToolApprovalProvider
 import dev.touchpilot.app.tools.AndroidToolExecutor
@@ -39,6 +43,7 @@ class MainActivity : Activity() {
         toolExecutor = AndroidToolExecutor(this)
         val preferences = getSharedPreferences("touchpilot", MODE_PRIVATE)
         val secretStore = ProviderSecretStore(this)
+        val skills = SkillStore(this).loadSkills()
 
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
@@ -215,6 +220,25 @@ class MainActivity : Activity() {
             setSingleLine(true)
         }
 
+        val skillTitle = TextView(this).apply {
+            text = "Active Skill"
+            textSize = 16f
+            setPadding(0, 20, 0, 4)
+        }
+
+        val skillSpinner = Spinner(this).apply {
+            adapter = ArrayAdapter(
+                this@MainActivity,
+                android.R.layout.simple_spinner_item,
+                listOf("No skill") + skills.map { it.title }
+            ).apply {
+                setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
+            }
+            val savedSkillId = preferences.getString("active_skill", null)
+            val savedIndex = skills.indexOfFirst { it.id == savedSkillId }
+            setSelection(if (savedIndex >= 0) savedIndex + 1 else 0)
+        }
+
         val taskInput = EditText(this).apply {
             hint = "Agent task, e.g. observe the current screen"
             setSingleLine(false)
@@ -231,20 +255,23 @@ class MainActivity : Activity() {
                     model = modelInput.text.toString()
                 )
                 val task = taskInput.text.toString()
+                val selectedSkill = selectedSkill(skillSpinner, skills)
 
                 preferences.edit()
                     .putString("provider_url", providerConfig.baseUrl)
                     .putString("provider_model", providerConfig.model)
+                    .putString("active_skill", selectedSkill?.id)
                     .apply()
 
-                outputView.text = "Running agent..."
+                outputView.text = "Running agent${selectedSkill?.let { " with ${it.title}" }.orEmpty()}..."
                 Thread {
                     val resultText = runCatching {
                         AgentRunner(
                             toolExecutor = toolExecutor,
                             approvalProvider = ToolApprovalProvider { tool, args ->
                                 approveAgentTool(tool, args)
-                            }
+                            },
+                            skill = selectedSkill
                         ).run(task, providerConfig).transcript
                     }.getOrElse { error ->
                         "Agent failed: ${error.message}"
@@ -301,6 +328,8 @@ class MainActivity : Activity() {
         root.addView(providerUrlInput)
         root.addView(modelInput)
         root.addView(apiKeyInput)
+        root.addView(skillTitle)
+        root.addView(skillSpinner)
         root.addView(taskInput)
         root.addView(runAgentButton)
         root.addView(outputView)
@@ -344,6 +373,11 @@ class MainActivity : Activity() {
             ViewGroup.LayoutParams.WRAP_CONTENT,
             1f
         )
+    }
+
+    private fun selectedSkill(skillSpinner: Spinner, skills: List<Skill>): Skill? {
+        val index = skillSpinner.selectedItemPosition - 1
+        return skills.getOrNull(index)
     }
 
     private fun resolveApiKey(

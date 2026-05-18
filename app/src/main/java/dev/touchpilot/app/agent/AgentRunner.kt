@@ -1,5 +1,6 @@
 package dev.touchpilot.app.agent
 
+import dev.touchpilot.app.memory.Skill
 import dev.touchpilot.app.security.ToolApprovalProvider
 import dev.touchpilot.app.security.requiresManualApproval
 import dev.touchpilot.app.tools.AndroidToolCatalog
@@ -8,7 +9,8 @@ import dev.touchpilot.app.tools.ToolExecutionLog
 
 class AgentRunner(
     private val toolExecutor: AndroidToolExecutor,
-    private val approvalProvider: ToolApprovalProvider
+    private val approvalProvider: ToolApprovalProvider,
+    private val skill: Skill? = null
 ) {
     fun run(task: String, config: ProviderConfig, maxSteps: Int = 4): AgentRunResult {
         val client = OpenAiCompatibleClient(config)
@@ -18,7 +20,7 @@ class AgentRunner(
         repeat(maxSteps) { step ->
             transcript.appendLine("Step ${step + 1}")
             val raw = runCatching {
-                client.complete(AgentPrompts.systemPrompt(), context)
+                client.complete(AgentPrompts.systemPrompt(skill), context)
             }.getOrElse { error ->
                 transcript.appendLine("Provider error: ${error.message}")
                 return AgentRunResult(transcript.toString(), null)
@@ -44,7 +46,17 @@ class AgentRunner(
 
             val validationError = toolExecutor.validate(toolName, command.args)
             val spec = AndroidToolCatalog.find(toolName)
-            if (validationError != null) {
+            val allowlistError = validateSkillAllowlist(toolName)
+            if (allowlistError != null) {
+                transcript.appendLine("Skill allowlist denied tool: $allowlistError")
+                ToolExecutionLog.record(
+                    name = toolName,
+                    args = "skill=${skill?.id.orEmpty()}",
+                    ok = false,
+                    message = "denied by skill allowlist"
+                )
+                return AgentRunResult(transcript.toString(), null)
+            } else if (validationError != null) {
                 transcript.appendLine("Tool validation failed: $validationError")
             } else if (spec != null && spec.requiresManualApproval()) {
                 transcript.appendLine("Approval requested for $toolName (${spec.risk}).")
@@ -102,5 +114,11 @@ class AgentRunner(
             appendLine(toolExecutor.observeScreen())
             appendLine("Recover from the last error or return a final answer if recovery is unsafe.")
         }
+    }
+
+    private fun validateSkillAllowlist(toolName: String): String? {
+        val activeSkill = skill ?: return null
+        if (toolName in activeSkill.allowedTools) return null
+        return "$toolName is not allowed by ${activeSkill.title}"
     }
 }

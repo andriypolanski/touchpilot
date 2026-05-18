@@ -32,10 +32,10 @@
 
 ## Phase 3: Skills
 
-- Add Markdown skill files.
-- Load skills into prompt context.
-- Add tool allowlists per skill.
-- Provide starter skills for browser, settings, and messages.
+- [x] Add Markdown skill files.
+- [x] Load skills into prompt context.
+- [x] Add tool allowlists per skill.
+- [x] Provide starter skills for browser, settings, and messages.
 
 ## Phase 4: MCP
 

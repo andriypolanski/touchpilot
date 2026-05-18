@@ -28,9 +28,10 @@ User
 2. Agent runtime builds context from session, skills, and current policy.
 3. LLM returns a message or a structured tool call.
 4. Tool router validates the requested tool and arguments.
-5. Security policy approves, denies, or asks the user.
-6. Android tool layer executes the action.
-7. Result is logged and fed back to the agent.
+5. Active skill allowlist approves or denies the requested tool.
+6. Security policy approves, denies, or asks the user.
+7. Android tool layer executes the action.
+8. Result is logged and fed back to the agent.
 
 ## First Runtime Target
 

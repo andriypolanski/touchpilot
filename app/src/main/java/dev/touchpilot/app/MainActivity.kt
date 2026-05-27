@@ -447,7 +447,6 @@ class MainActivity : Activity() {
 
         contentRoot.addView(sectionTitle("Chat"))
         contentRoot.addView(statusPill())
-        contentRoot.addView(skillPill())
         contentRoot.addView(runStatePill())
         contentRoot.addView(chatContextStrip())
 
@@ -910,6 +909,7 @@ class MainActivity : Activity() {
                 } else {
                     timelineBuilder.snapshot
                 }
+                // Set agent run state based on outcome
                 if (agentCancellationSignal.get()) {
                     setAgentRunState(AgentRunState.CANCELLED)
                 } else if (runOutcome.isFailure ||

@@ -417,6 +417,7 @@ object AgentRunDetailFormatter {
             is AgentEvent.PolicyBlocked -> AgentRunStepStatus.BLOCKED
             is AgentEvent.Clarification -> AgentRunStepStatus.WAITING
             is AgentEvent.FinalAnswer -> AgentRunStepStatus.COMPLETE
+            is AgentEvent.RunCancelled -> AgentRunStepStatus.BLOCKED
         }
     }
 
@@ -435,6 +436,7 @@ object AgentRunDetailFormatter {
             }
             is AgentEvent.Clarification -> "Clarification needed"
             is AgentEvent.FinalAnswer -> "Final answer"
+            is AgentEvent.RunCancelled -> "Run cancelled"
         }
     }
 
@@ -458,6 +460,7 @@ object AgentRunDetailFormatter {
             is AgentEvent.PolicyBlocked -> formatPolicyBlock(payload)
             is AgentEvent.Clarification -> formatClarification(payload)
             is AgentEvent.FinalAnswer -> payload.getString("text")
+            is AgentEvent.RunCancelled -> payload.getString("reason")
         }
     }
 

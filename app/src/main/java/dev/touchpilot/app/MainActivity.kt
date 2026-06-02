@@ -1150,7 +1150,7 @@ class MainActivity : Activity() {
 
         contentRoot.addView(
             secondaryButton("Open Accessibility Settings") {
-                startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
+                openAccessibilitySettings()
             }
         )
     }
@@ -1160,7 +1160,7 @@ class MainActivity : Activity() {
         contentRoot.addView(statusPill())
         contentRoot.addView(
             secondaryButton("Open Accessibility Settings") {
-                startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
+                openAccessibilitySettings()
             }.apply { id = R.id.open_accessibility_settings_button }
         )
 
@@ -2590,6 +2590,14 @@ class MainActivity : Activity() {
     private fun hideKeyboard(anchor: View) {
         val manager = getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
         manager.hideSoftInputFromWindow(anchor.windowToken, 0)
+    }
+
+    private fun openAccessibilitySettings() {
+        startActivity(
+            Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS).apply {
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+        )
     }
 
     private fun AgentProviderMode.label(): String {

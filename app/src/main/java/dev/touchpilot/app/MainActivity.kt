@@ -25,22 +25,12 @@ import android.widget.Toast
 import androidx.annotation.DrawableRes
 import com.google.android.material.card.MaterialCardView
 import com.google.android.material.tabs.TabLayout
-import dev.touchpilot.app.agent.AgentEvent
-import dev.touchpilot.app.agent.AgentEventListener
 import dev.touchpilot.app.agent.AgentProviderMode
-import dev.touchpilot.app.agent.AgentRunCompletionSummary
 import dev.touchpilot.app.agent.AgentRunDetailFormatter
 import dev.touchpilot.app.agent.AgentRunDisplayStep
-import dev.touchpilot.app.agent.AgentRunIds
 import dev.touchpilot.app.agent.AgentRunRecord
-import dev.touchpilot.app.agent.AgentRunResult
-import dev.touchpilot.app.agent.AgentRunState
 import dev.touchpilot.app.agent.AgentRunStepStatus
-import dev.touchpilot.app.agent.AgentScreenRecord
 import dev.touchpilot.app.agent.AgentStep
-import dev.touchpilot.app.agent.AgentStepStopReason
-import dev.touchpilot.app.agent.AgentStepTimelineBuilder
-import dev.touchpilot.app.agent.ConversationalGate
 import dev.touchpilot.app.agent.DefaultLocalReasoningCore
 import dev.touchpilot.app.agent.LocalReasoningContext
 import dev.touchpilot.app.agent.LocalReasoningCore
@@ -54,6 +44,7 @@ import dev.touchpilot.app.security.SensitiveTextRedactor
 import dev.touchpilot.app.security.ToolApprovalRequest
 import dev.touchpilot.app.security.ToolApprovalProvider
 import dev.touchpilot.app.security.ToolSource
+import dev.touchpilot.app.runtime.AgentRunController
 import dev.touchpilot.app.tools.AndroidToolExecutor
 import dev.touchpilot.app.tools.ToolExecutionLog
 import dev.touchpilot.app.tools.ToolResult
@@ -67,7 +58,6 @@ import dev.touchpilot.app.ui.shortLine
 import dev.touchpilot.app.ui.statusChip
 import dev.touchpilot.app.ui.summaryCard
 import dev.touchpilot.app.ui.timelineCard
-import dev.touchpilot.app.ui.chat.ApprovalState
 import dev.touchpilot.app.ui.chat.ChatEvent
 import dev.touchpilot.app.ui.chat.ChatScreenRenderer
 import dev.touchpilot.app.ui.logs.LogsScreenRenderer
@@ -79,9 +69,6 @@ import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
-import java.util.concurrent.CountDownLatch
-import java.util.concurrent.TimeUnit
-import java.util.concurrent.atomic.AtomicBoolean
 
 class MainActivity : Activity() {
     private lateinit var preferences: SharedPreferences
@@ -89,6 +76,7 @@ class MainActivity : Activity() {
     private lateinit var toolExecutor: AndroidToolExecutor
     private lateinit var localModelRuntime: LiteRtCommandModelRuntime
     private lateinit var reasoningCore: LocalReasoningCore
+    private lateinit var agentRunController: AgentRunController
     private lateinit var contentRoot: LinearLayout
     private lateinit var scrollView: ScrollView
     private lateinit var chatInputBar: LinearLayout
@@ -105,11 +93,7 @@ class MainActivity : Activity() {
     private var lastFocusInputArgs: Map<String, String>? = null
     private var focusSelectorIndex: Int = 0
     private val conversation = mutableListOf<ChatEvent>()
-    private var agentRunState: AgentRunState = AgentRunState.IDLE
-    private var agentCancellationSignal: AtomicBoolean = AtomicBoolean(false)
-    private val agentRunHistory = mutableListOf<AgentRunRecord>()
     private var activeRunDetailId: String? = null
-    private var pendingClarification: PendingClarification? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -125,13 +109,23 @@ class MainActivity : Activity() {
             invocation = defaultAgentRunInvocation(
                 toolExecutor = toolExecutor,
                 approvalProvider = ToolApprovalProvider { request ->
-                    approveAgentTool(request)
+                    agentRunController.approveTool(request)
                 },
                 localModelRuntime = localModelRuntime
             ),
             sessionContext = { currentReasoningContext() },
             availableSkills = { skills },
             screenContextProvider = { AccessibilityBridge.observeScreenContext() }
+        )
+        agentRunController = AgentRunController(
+            reasoningCore = reasoningCore,
+            conversation = conversation,
+            currentProviderMode = ::currentProviderMode,
+            runOnUiThread = { block -> runOnUiThread(block) },
+            showChat = { showSection(Section.CHAT) },
+            refreshExecutionLog = ::refreshExecutionLog,
+            refreshStatus = ::refreshStatus,
+            refreshStepTimeline = ::refreshStepTimeline,
         )
 
         if (conversation.isEmpty()) {
@@ -351,7 +345,7 @@ class MainActivity : Activity() {
         if (task.isEmpty()) return
         hideKeyboard(chatTaskInput)
         chatTaskInput.text.clear()
-        runAgentFromChat(task)
+        agentRunController.startFromChat(task)
     }
 
     private fun chatScreenRenderer(): ChatScreenRenderer {
@@ -361,12 +355,12 @@ class MainActivity : Activity() {
             contentRoot = contentRoot,
             conversation = conversation,
             statusPill = ::statusPill,
-            agentRunState = { agentRunState },
+            agentRunState = { agentRunController.runState },
             runtimeLabel = { currentProviderMode().label() },
             skillTitle = { selectedSkill()?.title ?: "No skill selected" },
             setChatTaskInput = { chatTaskInput = it },
             submitChatMessage = ::submitChatMessage,
-            cancelAgentRun = ::cancelAgentRun,
+            cancelAgentRun = agentRunController::cancelRun,
             openRunDetail = ::openRunDetail,
             refreshChatScreen = { showSection(Section.CHAT) },
             buildApprovalMessage = { buildApprovalMessage(it.request) },
@@ -387,274 +381,6 @@ class MainActivity : Activity() {
         scrollView.post {
             scrollView.fullScroll(View.FOCUS_DOWN)
         }
-    }
-
-    private fun runAgentFromChat(task: String) {
-        val pending = pendingClarification
-        val originalTask = pending?.originalTask
-        val agentTask = if (pending != null) {
-            pendingClarification = null
-            "${pending.originalTask}\n\nUser clarification: $task"
-        } else {
-            task
-        }
-
-        conversation += ChatEvent.User(task)
-        ToolExecutionLog.recordChat(
-            name = if (pending != null) "clarification_reply" else "user_message",
-            actor = "User",
-            message = task
-        )
-
-        val conversationalResponse = ConversationalGate.respond(agentTask)
-        if (conversationalResponse != null) {
-            conversation += ChatEvent.Agent(conversationalResponse.message, "")
-            ToolExecutionLog.recordChat(
-                name = "assistant_message",
-                actor = "TouchPilot",
-                message = conversationalResponse.message
-            )
-            showSection(Section.CHAT)
-            return
-        }
-
-        val workingIndex = conversation.size
-        agentCancellationSignal.set(false)
-        setAgentRunState(AgentRunState.RUNNING)
-        conversation += ChatEvent.Working("Working on it.", "Runtime: ${currentProviderMode().label()}")
-        val stepTimeline = ChatEvent.StepTimeline()
-        conversation += stepTimeline
-        showSection(Section.CHAT)
-
-        val runId = AgentRunIds.next()
-        val startedAtMillis = System.currentTimeMillis()
-        val taskForRecord = originalTask ?: task
-        ToolExecutionLog.recordAction(
-            name = "agent_run_started",
-            result = taskForRecord,
-            status = "running",
-            source = currentProviderMode().toLogSource()
-        )
-        val initialScreenRecord = AgentScreenRecord.capture(
-            sequenceNumber = 0,
-            phase = "initial",
-            timestampMillis = startedAtMillis,
-            context = AccessibilityBridge.observeScreenContext()
-        )
-
-        Thread {
-            val timelineBuilder = AgentStepTimelineBuilder()
-            val runOutcome = runCatching {
-                reasoningCore.run(
-                    task = agentTask,
-                    timeline = timelineBuilder,
-                    listener = AgentEventListener {
-                        runOnUiThread {
-                            refreshStepTimeline(stepTimeline, timelineBuilder.snapshot)
-                        }
-                    },
-                    cancellationSignal = agentCancellationSignal
-                )
-            }
-            val completedAtMillis = System.currentTimeMillis()
-            val screenRecords = listOf(
-                initialScreenRecord,
-                AgentScreenRecord.capture(
-                    sequenceNumber = 1,
-                    phase = "final",
-                    timestampMillis = completedAtMillis,
-                    context = AccessibilityBridge.observeScreenContext()
-                )
-            )
-            val record = if (runOutcome.isSuccess) {
-                AgentRunRecord(
-                    id = runId,
-                    task = taskForRecord,
-                    startedAtMillis = startedAtMillis,
-                    completedAtMillis = completedAtMillis,
-                    result = runOutcome.getOrThrow(),
-                    screenRecords = screenRecords
-                )
-            } else {
-                AgentRunRecord(
-                    id = runId,
-                    task = taskForRecord,
-                    startedAtMillis = startedAtMillis,
-                    completedAtMillis = completedAtMillis,
-                    result = null,
-                    errorMessage = runOutcome.exceptionOrNull()?.message ?: "Unknown agent error",
-                    screenRecords = screenRecords
-                )
-            }
-
-            runOnUiThread {
-                val steps = if (runOutcome.isFailure) {
-                    timelineBuilder.snapshot + timelineBuilder.failureStop(
-                        "Agent failed: ${runOutcome.exceptionOrNull()?.message.orEmpty()}"
-                    )
-                } else {
-                    timelineBuilder.snapshot
-                }
-                // Set agent run state based on outcome
-                if (agentCancellationSignal.get()) {
-                    setAgentRunState(AgentRunState.CANCELLED)
-                } else if (runOutcome.isFailure ||
-                           (record.result?.events?.any { it is AgentEvent.ToolFailed || it is AgentEvent.PolicyBlocked } == true)) {
-                    setAgentRunState(AgentRunState.FAILED)
-                    conversation.forEach { event ->
-                        if (event is ChatEvent.ApprovalPrompt && event.state == ApprovalState.PENDING) {
-                            event.state = ApprovalState.REJECTED
-                        }
-                    }
-                } else {
-                    setAgentRunState(AgentRunState.COMPLETED)
-                }
-                refreshStepTimeline(stepTimeline, steps, complete = true)
-                finishAgentChatRun(
-                    record = record,
-                    runOutcome = runOutcome,
-                    workingIndex = workingIndex,
-                    resumeOriginalTask = originalTask,
-                    timelineSteps = steps,
-                )
-            }
-        }.start()
-    }
-
-    private fun finishAgentChatRun(
-        record: AgentRunRecord,
-        runOutcome: Result<AgentRunResult>,
-        workingIndex: Int,
-        resumeOriginalTask: String?,
-        timelineSteps: List<AgentStep> = emptyList(),
-    ) {
-        removeWorkingIndicator(workingIndex)
-        agentRunHistory += record
-        ToolExecutionLog.recordAction(
-            name = "agent_run_finished",
-            result = record.errorMessage ?: AgentRunDetailFormatter.compactSummary(record),
-            status = if (runOutcome.isSuccess) "complete" else "fail",
-            source = currentProviderMode().toLogSource(),
-            details = "run_id=${record.id}"
-        )
-        refreshExecutionLog()
-        refreshStatus()
-
-        val result = runOutcome.getOrNull()
-        when {
-            result?.stopReason == AgentStepStopReason.CLARIFICATION_NEEDED -> {
-                val structured = result.events.filterIsInstance<AgentEvent.Clarification>().lastOrNull()
-                val assistant = result.events.filterIsInstance<AgentEvent.AssistantMessage>().lastOrNull()
-                val prompt = when {
-                    structured != null -> ClarificationChatPrompt(
-                        question = structured.question,
-                        detail = structured.detail,
-                        choices = structured.candidates.map {
-                            SensitiveTextRedactor.redact(it.displayLabel)
-                        },
-                    )
-                    assistant != null -> ClarificationChatPrompt(
-                        question = assistant.text,
-                        detail = assistant.detail,
-                        choices = assistant.choices,
-                    )
-                    else -> null
-                }
-                if (prompt != null) {
-                    val originalTask = resumeOriginalTask ?: record.task
-                    pendingClarification = PendingClarification(originalTask = originalTask)
-                    ToolExecutionLog.recordChat(
-                        name = "clarification_prompt",
-                        actor = "TouchPilot",
-                        message = "${prompt.question}\n${prompt.detail}"
-                    )
-                    conversation += ChatEvent.ClarificationPrompt(
-                        question = prompt.question,
-                        detail = prompt.detail,
-                        choices = prompt.choices,
-                        onAnswer = { answer -> runAgentFromChat(answer) }
-                    )
-                } else {
-                    conversation += ChatEvent.Agent(
-                        "TouchPilot needs clarification before continuing.",
-                        result.stopMessage
-                    )
-                    ToolExecutionLog.recordChat(
-                        name = "assistant_message",
-                        actor = "TouchPilot",
-                        message = result.stopMessage
-                    )
-                }
-            }
-            result?.stopReason == AgentStepStopReason.COMPLETED &&
-                isInformationalAssistantRun(result) -> {
-                val assistant = result.events.filterIsInstance<AgentEvent.AssistantMessage>().last()
-                conversation += ChatEvent.Agent(assistant.text, assistant.detail)
-                ToolExecutionLog.recordChat(
-                    name = "assistant_message",
-                    actor = "TouchPilot",
-                    message = "${assistant.text}\n${assistant.detail}"
-                )
-            }
-            runOutcome.isSuccess -> {
-                record.result?.events
-                    ?.let(ToolCallCardModel::fromEvents)
-                    ?.forEach { card ->
-                        conversation += ChatEvent.ToolCall(card)
-                    }
-                conversation += ChatEvent.CompletionSummary(
-                    summary = AgentRunDetailFormatter.buildCompletionSummary(record, timelineSteps),
-                    runId = record.id,
-                )
-                conversation += ChatEvent.Timeline(
-                    title = "Action timeline",
-                    body = AgentRunDetailFormatter.compactSummary(record),
-                    runId = record.id
-                )
-                val finalAnswer = result?.finalAnswer
-                val doneDetail = when {
-                    finalAnswer != null -> finalAnswer
-                    timelineSteps.isEmpty() -> "No steps recorded."
-                    else -> "Tap the timeline card to inspect tool calls, verification, and stop reason."
-                }
-                conversation += ChatEvent.Agent("Done.", doneDetail)
-                ToolExecutionLog.recordChat(
-                    name = "assistant_message",
-                    actor = "TouchPilot",
-                    message = doneDetail,
-                    status = "complete"
-                )
-            }
-            else -> {
-                conversation += ChatEvent.Agent(
-                    "Run failed.",
-                    record.errorMessage ?: "Unknown agent error"
-                )
-                ToolExecutionLog.recordChat(
-                    name = "assistant_message",
-                    actor = "TouchPilot",
-                    message = record.errorMessage ?: "Unknown agent error",
-                    status = "fail"
-                )
-            }
-        }
-        showSection(Section.CHAT)
-    }
-
-    private fun removeWorkingIndicator(workingIndex: Int) {
-        if (workingIndex in conversation.indices &&
-            conversation[workingIndex] is ChatEvent.Working
-        ) {
-            conversation.removeAt(workingIndex)
-        }
-    }
-
-    private fun isInformationalAssistantRun(result: AgentRunResult): Boolean {
-        val hasAssistant = result.events.any { it is AgentEvent.AssistantMessage }
-        val invokedTools = result.events.any {
-            it is AgentEvent.ToolRequested || it is AgentEvent.ToolRunning
-        }
-        return hasAssistant && !invokedTools
     }
 
     private fun refreshStepTimeline(
@@ -819,28 +545,6 @@ class MainActivity : Activity() {
         }
     }
 
-    private fun setAgentRunState(state: AgentRunState) {
-        agentRunState = state
-        if (activeSection == Section.CHAT) {
-            showSection(Section.CHAT)
-        }
-    }
-
-    private fun cancelAgentRun() {
-        agentCancellationSignal.set(true)
-        setAgentRunState(AgentRunState.CANCELLED)
-
-        // Reject any pending approval prompts
-        conversation.forEach { event ->
-            if (event is ChatEvent.ApprovalPrompt && event.state == ApprovalState.PENDING) {
-                event.state = ApprovalState.REJECTED
-            }
-        }
-
-        conversation += ChatEvent.Agent("Run cancelled.", "Stopped by user request.")
-        showSection(Section.CHAT)
-    }
-
     private fun currentProviderMode(): AgentProviderMode {
         return when (preferences.getString("agent_provider_mode", AgentProviderMode.LOCAL_ROUTER.name)) {
             AgentProviderMode.LOCAL_MODEL.name -> AgentProviderMode.LOCAL_MODEL
@@ -884,32 +588,6 @@ class MainActivity : Activity() {
                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             }
         )
-    }
-
-    private fun AgentProviderMode.toLogSource(): String {
-        return when (this) {
-            AgentProviderMode.LOCAL_MODEL -> "local_model"
-            AgentProviderMode.LOCAL_ROUTER -> "local_router"
-        }
-    }
-
-    private fun approveAgentTool(request: ToolApprovalRequest): Boolean {
-        val latch = CountDownLatch(1)
-        val approved = AtomicBoolean(false)
-
-        runOnUiThread {
-            val prompt = ChatEvent.ApprovalPrompt(
-                request = request,
-                onDecision = { decision ->
-                    approved.set(decision)
-                    latch.countDown()
-                }
-            )
-            conversation += prompt
-            showSection(Section.CHAT)
-        }
-
-        return latch.await(ApprovalTimeoutMs, TimeUnit.MILLISECONDS) && approved.get()
     }
 
     private fun buildApprovalMessage(request: ToolApprovalRequest): String {
@@ -976,7 +654,7 @@ class MainActivity : Activity() {
     }
 
     private fun findAgentRun(runId: String): AgentRunRecord? {
-        return agentRunHistory.lastOrNull { it.id == runId }
+        return agentRunController.findRun(runId)
     }
 
     private fun renderRecentAgentRuns() {
@@ -989,7 +667,7 @@ class MainActivity : Activity() {
                 setPadding(0, 12, 0, 4)
             }
         )
-        if (agentRunHistory.isEmpty()) {
+        if (agentRunController.runHistory.isEmpty()) {
             contentRoot.addView(
                 timelineCard(
                     title = "No agent runs yet",
@@ -999,7 +677,7 @@ class MainActivity : Activity() {
             return
         }
 
-        agentRunHistory.asReversed().forEach { record ->
+        agentRunController.runHistory.asReversed().forEach { record ->
             contentRoot.addView(
                 timelineCard(
                     title = record.task,
@@ -1195,16 +873,6 @@ class MainActivity : Activity() {
         return file
     }
 
-    private data class PendingClarification(
-        val originalTask: String,
-    )
-
-    private data class ClarificationChatPrompt(
-        val question: String,
-        val detail: String,
-        val choices: List<String>,
-    )
-
     private enum class Section(val label: String, @DrawableRes val iconRes: Int) {
         CHAT("Chat", R.drawable.ic_chat),
         TOOLS("Tools", R.drawable.ic_tools),
@@ -1213,7 +881,6 @@ class MainActivity : Activity() {
     }
 
     private companion object {
-        const val ApprovalTimeoutMs = 5 * 60 * 1000L
         const val MaxApprovalArgLength = 500
         const val MaxToolCardFieldLength = 700
         val ProviderModeLabels = listOf("Local router", "Local model")

@@ -103,4 +103,41 @@ class ObserveScreenContextToolTest {
         assertEquals(0, json.getJSONArray("nodes").length())
         assertFalse(json.getBoolean("containsSensitiveContent"))
     }
+
+    @Test
+    fun reportsExactReasonWhenAccessibilityNotConnected() {
+        val outcome = ObserveScreenContext.outcome(connected = false, context = ScreenContext.Empty)
+
+        assertFalse(outcome.result.ok)
+        assertEquals(ObserveScreenContext.NotConnectedReason, outcome.result.message)
+        assertEquals(ObserveScreenContext.NotConnectedReason, outcome.logMessage)
+        assertEquals(ObserveScreenContext.NotConnectedReasonCode, outcome.result.data["reason"])
+        // The failure path must not reuse the misleading node-count message that
+        // reads like a successful but empty observation (issue #216).
+        assertFalse(outcome.logMessage.contains("nodes="), outcome.logMessage)
+    }
+
+    @Test
+    fun reportsContextJsonAndNodeCountWhenConnected() {
+        val context = ScreenContext(
+            appLabel = "Settings",
+            packageName = "com.android.settings",
+            nodes = listOf(
+                ScreenNode(
+                    nodeId = "0.0",
+                    role = NodeRole.BUTTON,
+                    text = ScreenText.of("Wi-Fi"),
+                    clickable = true
+                )
+            )
+        )
+
+        val outcome = ObserveScreenContext.outcome(connected = true, context = context)
+
+        assertTrue(outcome.result.ok)
+        assertEquals("context nodes=1", outcome.logMessage)
+        assertEquals("1", outcome.result.data["nodes"])
+        assertEquals("false", outcome.result.data["contains_sensitive_content"])
+        assertTrue(outcome.result.message.contains("Wi-Fi"), outcome.result.message)
+    }
 }

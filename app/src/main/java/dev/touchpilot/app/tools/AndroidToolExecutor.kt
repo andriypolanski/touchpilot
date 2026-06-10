@@ -15,6 +15,7 @@ import dev.touchpilot.app.security.SensitiveTextRedactor
 import dev.touchpilot.app.security.ToolPolicyRequest
 import dev.touchpilot.app.security.ToolSource
 import dev.touchpilot.app.screen.NodeBounds
+import dev.touchpilot.app.screen.ScreenContext
 import dev.touchpilot.app.tools.targets.ClearTextTarget
 import dev.touchpilot.app.tools.targets.ScrollResolution
 import dev.touchpilot.app.tools.targets.ScrollResolver
@@ -153,17 +154,14 @@ class AndroidToolExecutor(
             }
             "observe_screen_context" -> {
                 val connected = AccessibilityBridge.isConnected()
-                val screenContext = AccessibilityBridge.observeScreenContext()
-                val json = screenContext.toRedactedJson()
-                record(name, "", connected, "context nodes=${screenContext.nodes.size}")
-                ToolResult(
-                    ok = connected,
-                    message = json,
-                    data = mapOf(
-                        "nodes" to screenContext.nodes.size.toString(),
-                        "contains_sensitive_content" to screenContext.containsSensitiveContent.toString()
-                    )
-                )
+                val screenContext = if (connected) {
+                    AccessibilityBridge.observeScreenContext()
+                } else {
+                    ScreenContext.Empty
+                }
+                val outcome = ObserveScreenContext.outcome(connected, screenContext)
+                record(name, "", connected, outcome.logMessage)
+                outcome.result
             }
             "open_app" -> {
                 val target = args["target"].orEmpty()

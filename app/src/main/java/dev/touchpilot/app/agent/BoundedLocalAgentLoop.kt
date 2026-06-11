@@ -197,7 +197,9 @@ class BoundedLocalAgentLoop(
                         args = command.args,
                         source = source,
                         activeScreen = currentScreen,
-                        activeSkillId = skill?.id
+                        activeSkillId = skill?.id,
+                        activeSkillTitle = skill?.title,
+                        activeSkillRisk = skill?.risk
                     )
                 )
                 when (decision) {

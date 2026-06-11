@@ -1,5 +1,6 @@
 package dev.touchpilot.app.security
 
+import dev.touchpilot.app.memory.SkillRisk
 import dev.touchpilot.app.tools.ToolRisk
 import dev.touchpilot.app.tools.ToolSpec
 
@@ -16,7 +17,9 @@ data class ToolPolicyRequest(
     val args: Map<String, String>,
     val source: ToolSource,
     val activeScreen: String = "",
-    val activeSkillId: String? = null
+    val activeSkillId: String? = null,
+    val activeSkillTitle: String? = null,
+    val activeSkillRisk: SkillRisk? = null
 )
 
 sealed class PolicyDecision {
@@ -32,7 +35,13 @@ sealed class PolicyDecision {
         override val reason: String,
         override val userMessage: String,
         val dataAffected: String,
-        val ifApproved: String
+        val ifApproved: String,
+        /**
+         * Advisory note shown when the action is requested under an elevated-risk
+         * skill. Empty when no skill (or only a low-risk skill) is active. It only
+         * adds caution to the prompt — it never changes the decision.
+         */
+        val skillContext: String = ""
     ) : PolicyDecision()
 
     data class Deny(
@@ -159,7 +168,22 @@ class DefaultActionPolicy : ActionPolicy {
             reason = reason,
             userMessage = "Approval required for ${request.tool.name}: $reason.",
             dataAffected = dataAffected,
-            ifApproved = ifApproved
+            ifApproved = ifApproved,
+            skillContext = skillRiskContext(request)
         )
+    }
+
+    /**
+     * Surfaces the active skill's risk in the approval prompt. Returns a note
+     * only for a medium- or high-risk skill, so an absent or low-risk skill
+     * leaves the prompt unchanged. This may only raise caution; it never lowers
+     * a tool's risk or bypasses approval.
+     */
+    private fun skillRiskContext(request: ToolPolicyRequest): String {
+        val risk = request.activeSkillRisk ?: return ""
+        if (risk == SkillRisk.LOW) return ""
+        val title = request.activeSkillTitle?.takeIf { it.isNotBlank() } ?: "the active skill"
+        return "This action is requested under the ${risk.name.lowercase()}-risk skill " +
+            "\"$title\". Review carefully before approving."
     }
 }

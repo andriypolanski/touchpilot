@@ -1,9 +1,11 @@
 package dev.touchpilot.app.security
 
+import dev.touchpilot.app.memory.SkillRisk
 import dev.touchpilot.app.tools.ToolRisk
 import dev.touchpilot.app.tools.ToolSpec
 import kotlin.test.Test
 import kotlin.test.assertIs
+import kotlin.test.assertTrue
 
 class DefaultActionPolicyTest {
     private val policy = DefaultActionPolicy()
@@ -122,6 +124,95 @@ class DefaultActionPolicyTest {
         )
 
         assertIs<PolicyDecision.Allow>(decision)
+    }
+
+    @Test
+    fun approvalMentionsElevatedRiskSkill() {
+        val decision = policy.evaluate(
+            ToolPolicyRequest(
+                tool = mediumTool("tap"),
+                args = mapOf("text" to "Send"),
+                source = ToolSource.LOCAL_ROUTER,
+                activeScreen = "Messages conversation",
+                activeSkillTitle = "Messages",
+                activeSkillRisk = SkillRisk.HIGH
+            )
+        )
+
+        val approval = assertIs<PolicyDecision.RequireApproval>(decision)
+        assertTrue(approval.skillContext.contains("high-risk"), approval.skillContext)
+        assertTrue(approval.skillContext.contains("Messages"), approval.skillContext)
+    }
+
+    @Test
+    fun approvalHasNoSkillContextWithoutSkill() {
+        val decision = policy.evaluate(
+            ToolPolicyRequest(
+                tool = mediumTool("open_app"),
+                args = mapOf("target" to "Settings"),
+                source = ToolSource.LOCAL_ROUTER,
+                activeScreen = "Banking app home screen"
+            )
+        )
+
+        val approval = assertIs<PolicyDecision.RequireApproval>(decision)
+        assertTrue(approval.skillContext.isEmpty(), approval.skillContext)
+    }
+
+    @Test
+    fun lowRiskSkillAddsNoExtraCaution() {
+        val decision = policy.evaluate(
+            ToolPolicyRequest(
+                tool = mediumTool("tap"),
+                args = mapOf("text" to "Send"),
+                source = ToolSource.LOCAL_ROUTER,
+                activeScreen = "Messages conversation",
+                activeSkillTitle = "Browser",
+                activeSkillRisk = SkillRisk.LOW
+            )
+        )
+
+        val approval = assertIs<PolicyDecision.RequireApproval>(decision)
+        assertTrue(approval.skillContext.isEmpty(), approval.skillContext)
+    }
+
+    @Test
+    fun elevatedSkillDoesNotEscalateLowRiskTool() {
+        // A high-risk skill must NOT turn an auto-allowed low-risk tool into an
+        // approval — risk metadata may only raise caution in copy, not policy.
+        val decision = policy.evaluate(
+            ToolPolicyRequest(
+                tool = ToolSpec(
+                    name = "observe_screen",
+                    description = "Observe screen",
+                    risk = ToolRisk.LOW,
+                    arguments = emptyMap()
+                ),
+                args = emptyMap(),
+                source = ToolSource.LOCAL_ROUTER,
+                activeSkillTitle = "Messages",
+                activeSkillRisk = SkillRisk.HIGH
+            )
+        )
+
+        assertIs<PolicyDecision.Allow>(decision)
+    }
+
+    @Test
+    fun elevatedSkillDoesNotBypassBlockedWorkflow() {
+        // A skill of any risk must NOT unblock a blocked workflow.
+        val decision = policy.evaluate(
+            ToolPolicyRequest(
+                tool = mediumTool("tap"),
+                args = mapOf("text" to "Pay now"),
+                source = ToolSource.LOCAL_ROUTER,
+                activeScreen = "Checkout payment screen",
+                activeSkillTitle = "Shopping",
+                activeSkillRisk = SkillRisk.HIGH
+            )
+        )
+
+        assertIs<PolicyDecision.Block>(decision)
     }
 
     private fun mediumTool(name: String): ToolSpec {

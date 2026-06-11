@@ -15,17 +15,20 @@ object ChatToolTextFormatter {
             }
         }
 
-        return """
-            Risk: ${request.tool.risk}
-            Tool: ${request.tool.name}
-            Description: ${request.tool.description}
-            Why approval is needed: ${request.policy.reason}
-            Data affected: ${request.policy.dataAffected}
-            If approved: ${request.policy.ifApproved}
-
-            Arguments:
-            $argsText
-        """.trimIndent()
+        return buildString {
+            appendLine("Risk: ${request.tool.risk}")
+            appendLine("Tool: ${request.tool.name}")
+            appendLine("Description: ${request.tool.description}")
+            appendLine("Why approval is needed: ${request.policy.reason}")
+            if (request.policy.skillContext.isNotBlank()) {
+                appendLine("Skill context: ${request.policy.skillContext}")
+            }
+            appendLine("Data affected: ${request.policy.dataAffected}")
+            appendLine("If approved: ${request.policy.ifApproved}")
+            appendLine()
+            appendLine("Arguments:")
+            append(argsText)
+        }
     }
 
     fun toolCallBody(cardModel: ToolCallCardModel): String {

@@ -47,8 +47,10 @@ class AndroidToolExecutor(
     fun execute(
         name: String,
         args: Map<String, String>,
-        source: ToolSource = ToolSource.DIRECT_DEBUG
+        source: ToolSource = ToolSource.DIRECT_DEBUG,
+        foregroundApp: ForegroundAppInfo? = null
     ): ToolResult {
+        val resolvedForegroundApp = foregroundApp ?: AccessibilityBridge.getForegroundApp()
         val previousSource = executionSource.get()
         executionSource.set(source)
         try {
@@ -71,7 +73,7 @@ class AndroidToolExecutor(
                         args = args,
                         source = source,
                         activeScreen = observeScreen(),
-                        foregroundApp = AccessibilityBridge.getForegroundApp()
+                        foregroundApp = resolvedForegroundApp
                     )
                 )) {
                     is PolicyDecision.Block -> {

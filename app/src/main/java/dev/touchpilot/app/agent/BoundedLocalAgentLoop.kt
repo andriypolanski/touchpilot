@@ -159,6 +159,7 @@ class BoundedLocalAgentLoop(
 
             val validationError = tools.validate(toolName, command.args)
             val spec = tools.findTool(toolName)
+            val foregroundApp = tools.foregroundApp()
             val allowlistError = validateSkillAllowlist(toolName)
             if (allowlistError != null) {
                 transcript.appendLine("Skill allowlist denied tool: $allowlistError")
@@ -198,7 +199,7 @@ class BoundedLocalAgentLoop(
                         args = command.args,
                         source = source,
                         activeScreen = currentScreen,
-                        foregroundApp = tools.foregroundApp(),
+                        foregroundApp = foregroundApp,
                         activeSkillId = skill?.id,
                         activeSkillTitle = skill?.title,
                         activeSkillRisk = skill?.risk
@@ -270,7 +271,7 @@ class BoundedLocalAgentLoop(
             publishSteps()
             AgentEvent.toolRunning(command, source)?.let(::emit)
             val result = runCatching {
-                tools.execute(toolName, command.args, source)
+                tools.execute(toolName, command.args, source, foregroundApp)
             }.getOrElse { error ->
                 val message = error.message ?: "Tool execution error"
                 transcript.appendLine("Tool execution error: $message")
@@ -462,6 +463,11 @@ interface LocalAgentLoopTools {
     fun foregroundApp(): ForegroundAppInfo = ForegroundAppInfo.Disconnected
     fun validate(name: String, args: Map<String, String>): String?
     fun findTool(name: String): ToolSpec?
-    fun execute(name: String, args: Map<String, String>, source: ToolSource): ToolResult
+    fun execute(
+        name: String,
+        args: Map<String, String>,
+        source: ToolSource,
+        foregroundApp: ForegroundAppInfo = ForegroundAppInfo.Disconnected
+    ): ToolResult
     fun recordExecution(name: String, args: String, ok: Boolean, message: String) = Unit
 }

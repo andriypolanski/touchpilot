@@ -80,9 +80,10 @@ class AgentRunner(
         override fun execute(
             name: String,
             args: Map<String, String>,
-            source: ToolSource
+            source: ToolSource,
+            foregroundApp: ForegroundAppInfo
         ): ToolResult {
-            return toolExecutor.execute(name, args, source)
+            return toolExecutor.execute(name, args, source, foregroundApp)
         }
 
         override fun recordExecution(name: String, args: String, ok: Boolean, message: String) {

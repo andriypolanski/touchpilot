@@ -45,13 +45,19 @@ enum class PolicyAppCategory(
  * Uses local context only and only raises caution — it never lowers tool risk.
  */
 object AppContextClassifier {
+    enum class MatchMode {
+        SUBSTRING,
+        WORD_BOUNDARY
+    }
+
     data class AppContextPattern(
         val needle: String,
-        val category: PolicyAppCategory
+        val category: PolicyAppCategory,
+        val matchMode: MatchMode = MatchMode.SUBSTRING
     )
 
     val patterns: List<AppContextPattern> = listOf(
-        AppContextPattern("bank", PolicyAppCategory.BANKING),
+        AppContextPattern("bank", PolicyAppCategory.BANKING, MatchMode.WORD_BOUNDARY),
         AppContextPattern("banking", PolicyAppCategory.BANKING),
         AppContextPattern("credit union", PolicyAppCategory.BANKING),
         AppContextPattern("com.chase", PolicyAppCategory.BANKING),
@@ -62,12 +68,12 @@ object AppContextClassifier {
         AppContextPattern("order total", PolicyAppCategory.CHECKOUT_PAYMENT),
         AppContextPattern("cart total", PolicyAppCategory.CHECKOUT_PAYMENT),
         AppContextPattern("messages", PolicyAppCategory.MESSAGING),
-        AppContextPattern("sms", PolicyAppCategory.MESSAGING),
+        AppContextPattern("sms", PolicyAppCategory.MESSAGING, MatchMode.WORD_BOUNDARY),
         AppContextPattern("whatsapp", PolicyAppCategory.MESSAGING),
         AppContextPattern("telegram", PolicyAppCategory.MESSAGING),
-        AppContextPattern("signal", PolicyAppCategory.MESSAGING),
+        AppContextPattern("signal", PolicyAppCategory.MESSAGING, MatchMode.WORD_BOUNDARY),
         AppContextPattern("gmail", PolicyAppCategory.MESSAGING),
-        AppContextPattern("mail", PolicyAppCategory.MESSAGING),
+        AppContextPattern("mail", PolicyAppCategory.MESSAGING, MatchMode.WORD_BOUNDARY),
         AppContextPattern("account settings", PolicyAppCategory.ACCOUNT_MANAGEMENT),
         AppContextPattern("manage account", PolicyAppCategory.ACCOUNT_MANAGEMENT),
         AppContextPattern("delete account", PolicyAppCategory.ACCOUNT_MANAGEMENT),
@@ -88,7 +94,7 @@ object AppContextClassifier {
         val haystack = contextHaystack(request)
         if (haystack.isBlank()) return emptyList()
         return patterns
-            .filter { pattern -> pattern.needle in haystack }
+            .filter { pattern -> matches(haystack, pattern) }
             .map { it.category }
             .distinct()
     }
@@ -113,6 +119,14 @@ object AppContextClassifier {
             append(' ')
             append(foregroundApp?.activityClass.orEmpty())
         }.lowercase()
+    }
+
+    internal fun matches(haystack: String, pattern: AppContextPattern): Boolean {
+        return when (pattern.matchMode) {
+            MatchMode.SUBSTRING -> pattern.needle in haystack
+            MatchMode.WORD_BOUNDARY ->
+                Regex("\\b${Regex.escape(pattern.needle)}\\b").containsMatchIn(haystack)
+        }
     }
 
     private fun ruleForCategory(category: PolicyAppCategory): PolicyRule {

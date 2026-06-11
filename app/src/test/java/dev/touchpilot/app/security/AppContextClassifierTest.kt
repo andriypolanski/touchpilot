@@ -64,6 +64,44 @@ class AppContextClassifierTest {
     }
 
     @Test
+    fun wordBoundaryNeedlesAvoidEmbeddedSubstringFalsePositives() {
+        val emailClient = AppContextClassifier.classify(
+            request(
+                foregroundApp = ForegroundAppInfo(
+                    packageName = "com.example.email.client",
+                    appLabel = "Email Client",
+                    accessibilityConnected = true
+                )
+            )
+        )
+        assertTrue(PolicyAppCategory.MESSAGING !in emailClient)
+
+        val assignment = AppContextClassifier.classify(
+            request(activeScreen = "Assignment due tomorrow")
+        )
+        assertTrue(PolicyAppCategory.MESSAGING !in assignment)
+
+        val feedback = AppContextClassifier.classify(
+            request(activeScreen = "Feedback form")
+        )
+        assertTrue(PolicyAppCategory.BANKING !in feedback)
+    }
+
+    @Test
+    fun wordBoundaryNeedlesStillMatchIntendedContexts() {
+        val categories = AppContextClassifier.classify(
+            request(
+                foregroundApp = ForegroundAppInfo(
+                    packageName = "org.thoughtcrime.securesms",
+                    appLabel = "Signal",
+                    accessibilityConnected = true
+                )
+            )
+        )
+        assertEquals(listOf(PolicyAppCategory.MESSAGING), categories)
+    }
+
+    @Test
     fun appRulesOnlyAskNeverAllow() {
         val rules = AppContextClassifier.rules(
             request(activeScreen = "Banking app home screen")

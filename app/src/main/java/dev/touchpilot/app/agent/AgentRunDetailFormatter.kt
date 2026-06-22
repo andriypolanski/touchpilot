@@ -17,6 +17,35 @@ enum class AgentRunStepStatus(val label: String) {
     COMPLETE("complete")
 }
 
+/**
+ * Visual severity of a run step, used so run review can highlight each outcome
+ * distinctly. Kept separate from any color/UI value so the classification is
+ * pure and unit-testable; the renderer maps each severity to a theme color.
+ *
+ * Notably [FAILED] (a tool error) and [BLOCKED] (a policy/safety stop) are
+ * different severities, so they are no longer rendered with the same neutral
+ * color.
+ */
+enum class AgentRunStepSeverity {
+    POSITIVE,
+    IN_PROGRESS,
+    CAUTION,
+    NEGATIVE,
+    NEUTRAL
+}
+
+val AgentRunStepStatus.severity: AgentRunStepSeverity
+    get() = when (this) {
+        AgentRunStepStatus.SUCCESS,
+        AgentRunStepStatus.COMPLETE -> AgentRunStepSeverity.POSITIVE
+        AgentRunStepStatus.RUNNING,
+        AgentRunStepStatus.WAITING,
+        AgentRunStepStatus.PENDING -> AgentRunStepSeverity.IN_PROGRESS
+        AgentRunStepStatus.BLOCKED -> AgentRunStepSeverity.CAUTION
+        AgentRunStepStatus.FAILED -> AgentRunStepSeverity.NEGATIVE
+        AgentRunStepStatus.INFO -> AgentRunStepSeverity.NEUTRAL
+    }
+
 data class AgentRunDisplayStep(
     val index: Int,
     val status: AgentRunStepStatus,
@@ -418,6 +447,8 @@ object AgentRunDetailFormatter {
             is AgentEvent.Clarification -> AgentRunStepStatus.WAITING
             is AgentEvent.FinalAnswer -> AgentRunStepStatus.COMPLETE
             is AgentEvent.RunCancelled -> AgentRunStepStatus.BLOCKED
+            is AgentEvent.SkillActive -> AgentRunStepStatus.INFO
+            is AgentEvent.TraceRecorded -> AgentRunStepStatus.INFO
         }
     }
 
@@ -437,6 +468,8 @@ object AgentRunDetailFormatter {
             is AgentEvent.Clarification -> "Clarification needed"
             is AgentEvent.FinalAnswer -> "Final answer"
             is AgentEvent.RunCancelled -> "Run cancelled"
+            is AgentEvent.SkillActive -> "Skill scope: ${event.title}"
+            is AgentEvent.TraceRecorded -> "Workflow trace recorded"
         }
     }
 
@@ -461,6 +494,12 @@ object AgentRunDetailFormatter {
             is AgentEvent.Clarification -> formatClarification(payload)
             is AgentEvent.FinalAnswer -> payload.getString("text")
             is AgentEvent.RunCancelled -> payload.getString("reason")
+            is AgentEvent.SkillActive -> buildString {
+                appendLine("source: ${payload.getString("activation_source")}")
+                appendLine("risk: ${payload.getString("risk")}")
+                append("reason: ${payload.getString("reason")}")
+            }
+            is AgentEvent.TraceRecorded -> "${payload.getInt("step_count")} step(s) captured"
         }
     }
 

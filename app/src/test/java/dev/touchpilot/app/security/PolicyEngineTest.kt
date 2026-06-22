@@ -12,6 +12,13 @@ class PolicyEngineTest {
     private val engine = PolicyEngine()
 
     @Test
+    fun lowRiskToolIsAllowed() {
+        val decision = decide("observe_screen", risk = ToolRisk.LOW)
+
+        assertIs<PolicyDecision.Allow>(decision)
+    }
+
+    @Test
     fun lowRiskToolsBypassWorkflowChecks() {
         val decision = engine.decide(
             request(
@@ -22,6 +29,20 @@ class PolicyEngineTest {
         )
 
         assertIs<PolicyDecision.Allow>(decision)
+    }
+
+    @Test
+    fun mediumToolWithoutSensitiveWorkflowAsks() {
+        val decision = decide("tap", args = mapOf("text" to "Settings"))
+
+        assertIs<PolicyDecision.RequireApproval>(decision)
+    }
+
+    @Test
+    fun sensitiveWorkflowBlocksEvenWhenToolRiskWouldOnlyAsk() {
+        val decision = decide("tap", args = mapOf("text" to "Pay now"))
+
+        assertIs<PolicyDecision.Block>(decision)
     }
 
     @Test
@@ -39,13 +60,33 @@ class PolicyEngineTest {
     }
 
     @Test
+    fun sensitiveTextEntryBlocks() {
+        val decision = decide("type_text", args = mapOf("text" to "password: hunter2"))
+
+        assertIs<PolicyDecision.Block>(decision)
+    }
+
+    @Test
+    fun messageSendAsksWithMessagingContext() {
+        val decision = decide("tap", args = mapOf("text" to "Send"), screen = "WhatsApp conversation")
+
+        val approval = assertIs<PolicyDecision.RequireApproval>(decision)
+        assertTrue(approval.reason.contains("message"))
+    }
+
+    @Test
+    fun sendWithoutMessagingContextIsNotTreatedAsMessageSend() {
+        val decision = decide("tap", args = mapOf("text" to "Send"), screen = "A generic form")
+
+        assertIs<PolicyDecision.RequireApproval>(decision)
+    }
+
+    @Test
     fun mcpSourceRequiresApprovalNotBlock() {
-        val decision = engine.decide(
-            request(
-                tool = mediumTool("custom_mcp_tool"),
-                args = emptyMap(),
-                source = ToolSource.MCP
-            )
+        val decision = decide(
+            toolName = "custom_mcp_tool",
+            args = emptyMap(),
+            source = ToolSource.MCP
         )
 
         val approval = assertIs<PolicyDecision.RequireApproval>(decision)
@@ -82,6 +123,54 @@ class PolicyEngineTest {
 
         val approval = assertIs<PolicyDecision.RequireApproval>(decision)
         assertTrue(approval.skillContext.contains("high-risk"))
+    }
+
+    @Test
+    fun blockedToolRiskBlocks() {
+        val decision = decide("dangerous_tool", risk = ToolRisk.BLOCKED)
+
+        assertIs<PolicyDecision.Block>(decision)
+    }
+
+    @Test
+    fun lowRiskObservationIsAllowedDespiteSensitiveScreen() {
+        val decision = decide("observe_screen", risk = ToolRisk.LOW, screen = "Banking app — password field")
+
+        assertIs<PolicyDecision.Allow>(decision)
+    }
+
+    @Test
+    fun sensitiveScreenAloneDoesNotBlockBenignAction() {
+        val decision = decide("tap", args = mapOf("text" to "Settings"), screen = "Banking app — pay now")
+
+        assertIs<PolicyDecision.RequireApproval>(decision)
+    }
+
+    @Test
+    fun unknownSensitiveActionBlocksByDefault() {
+        val decision = decide("tap", args = mapOf("text" to "Verify your identity"))
+
+        assertIs<PolicyDecision.Block>(decision)
+    }
+
+    private fun tool(name: String, risk: ToolRisk = ToolRisk.MEDIUM) =
+        ToolSpec(name = name, description = "test", risk = risk, arguments = emptyMap())
+
+    private fun decide(
+        toolName: String,
+        risk: ToolRisk = ToolRisk.MEDIUM,
+        args: Map<String, String> = emptyMap(),
+        screen: String = "",
+        source: ToolSource = ToolSource.LOCAL_ROUTER,
+    ): PolicyDecision {
+        return engine.decide(
+            ToolPolicyRequest(
+                tool = tool(toolName, risk),
+                args = args,
+                source = source,
+                activeScreen = screen,
+            ),
+        )
     }
 
     private fun observeScreen(): ToolSpec {

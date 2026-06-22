@@ -1,5 +1,6 @@
 package dev.touchpilot.app.agent
 
+import dev.touchpilot.app.memory.SkillRisk
 import dev.touchpilot.app.security.PolicyDecision
 import dev.touchpilot.app.security.SensitiveTextRedactor
 import dev.touchpilot.app.security.ToolApprovalRequest
@@ -40,6 +41,7 @@ sealed class AgentEvent(
         val text: String,
         val detail: String = "",
         val choices: List<String> = emptyList(),
+        val suggestions: List<String> = emptyList(),
         override val id: String = nextId(),
         override val timestampMillis: Long = System.currentTimeMillis()
     ) : AgentEvent(id, timestampMillis) {
@@ -220,6 +222,55 @@ sealed class AgentEvent(
         }
     }
 
+    /**
+     * Emitted when an agent run scopes tools to an active or matched skill.
+     * Display-only metadata for chat/run UI; does not change skill selection.
+     */
+    data class SkillActive(
+        val skillId: String,
+        val title: String,
+        val risk: SkillRisk,
+        val allowedTools: Set<String>,
+        val activationSource: SkillActivationSource,
+        val reason: String,
+        override val id: String = nextId(),
+        override val timestampMillis: Long = System.currentTimeMillis()
+    ) : AgentEvent(id, timestampMillis) {
+        override val type = AgentEventType.SKILL_ACTIVE
+
+        override fun payload(redactSensitive: Boolean): Map<String, Any?> {
+            return mapOf(
+                "skill_id" to skillId,
+                "title" to title.redacted(redactSensitive),
+                "risk" to risk.name.lowercase(),
+                "allowed_tools" to allowedTools.sorted(),
+                "activation_source" to activationSource.wireName,
+                "reason" to reason.redacted(redactSensitive)
+            )
+        }
+    }
+
+    /**
+     * Signals that a successful run was captured as a reusable workflow trace
+     * (issue #289). It carries no sensitive payload — only the run id and the
+     * number of captured steps.
+     */
+    data class TraceRecorded(
+        val runId: String,
+        val stepCount: Int,
+        override val id: String = nextId(),
+        override val timestampMillis: Long = System.currentTimeMillis()
+    ) : AgentEvent(id, timestampMillis) {
+        override val type = AgentEventType.TRACE_RECORDED
+
+        override fun payload(redactSensitive: Boolean): Map<String, Any?> {
+            return mapOf(
+                "run_id" to runId,
+                "step_count" to stepCount
+            )
+        }
+    }
+
     companion object {
         private var sequence = 0L
 
@@ -309,5 +360,7 @@ enum class AgentEventType(val wireName: String) {
     POLICY_BLOCKED("policy_blocked"),
     CLARIFICATION("clarification"),
     FINAL_ANSWER("final_answer"),
-    RUN_CANCELLED("run_cancelled")
+    RUN_CANCELLED("run_cancelled"),
+    SKILL_ACTIVE("skill_active"),
+    TRACE_RECORDED("trace_recorded")
 }

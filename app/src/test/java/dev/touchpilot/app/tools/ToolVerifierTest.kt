@@ -205,6 +205,33 @@ class ToolVerifierTest {
     }
 
     @Test
+    fun waitForElementPassesWhenMatchingElementIsPresent() {
+        val result = verifier.verify(
+            toolName = "wait_for_element",
+            args = mapOf("text" to "Continue"),
+            result = ToolResult(ok = true, message = "waitForElement"),
+            before = screen(),
+            after = screen(nodes = listOf(button("0", "Continue"))),
+        )
+
+        val passed = assertIs<ToolVerificationResult.Passed>(result)
+        assertEquals("1", passed.data["count"])
+    }
+
+    @Test
+    fun waitForElementFailsWhenNoElementMatches() {
+        val result = verifier.verify(
+            toolName = "wait_for_element",
+            args = mapOf("text" to "Continue", "match" to "exact"),
+            result = ToolResult(ok = true, message = "waitForElement"),
+            before = screen(),
+            after = screen(nodes = listOf(button("0", "Cancel"))),
+        )
+
+        assertIs<ToolVerificationResult.Failed>(result)
+    }
+
+    @Test
     fun dismissKeyboardPassesWhenKeyboardWasHidden() {
         val result = verifier.verify(
             toolName = "dismiss_keyboard",
@@ -248,12 +275,13 @@ class ToolVerifierTest {
     }
 
     @Test
-    fun dismissKeyboardVerifierFailsDefensivelyIfStillVisibleSurfaces() {
-        // The executor cannot currently produce still_visible_after=true:
-        // softKeyboardController.showMode = HIDDEN is synchronous in IMMS
-        // and the action does not poll for window-list confirmation.
-        // The verifier branch is kept defensively so a future regression
-        // that resurrects a polled-failure code path is still surfaced.
+    fun dismissKeyboardVerifierFailsWhenStillVisibleSurfaces() {
+        // The executor can genuinely produce still_visible_after=true now:
+        // dismissKeyboard restores the previous show mode (which can re-trigger
+        // the platform auto-show while an editable field is still focused),
+        // then re-measures isKeyboardVisible(), and DismissKeyboardOutcome.Hidden
+        // carries that measured value. When the keyboard is back, the verifier
+        // must fail so the agent knows the dismissal did not stick.
         val result = verifier.verify(
             toolName = "dismiss_keyboard",
             args = emptyMap(),

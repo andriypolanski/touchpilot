@@ -5,6 +5,10 @@ enum class SettingsPanel(val label: String, val intro: String) {
         "Skills",
         "Skills bundle the tools and prompts TouchPilot uses for a kind of task."
     ),
+    TOOLS(
+        "Tools",
+        "Inspect and use the built-in Android tools from one place."
+    ),
     MCP(
         "MCP",
         "Connect TouchPilot to an external MCP HTTP JSON-RPC server to call its tools."

@@ -20,9 +20,18 @@ class NavigationControllerTest {
     fun switchingSectionsPreservesCurrentSection() {
         val controller = NavigationController()
 
-        controller.showSection(AppSection.TOOLS)
+        controller.showSection(AppSection.PRODUCT)
 
-        assertEquals(AppSection.TOOLS, controller.activeSection)
+        assertEquals(AppSection.PRODUCT, controller.activeSection)
+    }
+
+    @Test
+    fun productSectionCanBeSelected() {
+        val controller = NavigationController()
+
+        controller.showSection(AppSection.PRODUCT)
+
+        assertEquals(AppSection.PRODUCT, controller.activeSection)
     }
 
     @Test

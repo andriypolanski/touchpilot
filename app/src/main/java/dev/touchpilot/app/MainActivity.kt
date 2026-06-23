@@ -32,6 +32,7 @@ import dev.touchpilot.app.memory.SkillRegistry
 import dev.touchpilot.app.memory.SkillStore
 import dev.touchpilot.app.navigation.AppSection
 import dev.touchpilot.app.navigation.NavigationController
+import dev.touchpilot.app.navigation.SettingsPanel
 import dev.touchpilot.app.runtime.ToolExecutionCallbacks
 import dev.touchpilot.app.runtime.ToolExecutionController
 import dev.touchpilot.app.security.ToolApprovalProvider
@@ -48,6 +49,7 @@ import dev.touchpilot.app.ui.chat.ChatEvent
 import dev.touchpilot.app.ui.chat.ChatScreenRenderer
 import dev.touchpilot.app.ui.logs.AgentRunDetailRenderer
 import dev.touchpilot.app.ui.logs.LogsScreenRenderer
+import dev.touchpilot.app.ui.product.ProductScreenRenderer
 import dev.touchpilot.app.ui.settings.SettingsScreenRenderer
 import dev.touchpilot.app.ui.settings.SkillDetailRenderer
 import dev.touchpilot.app.ui.tools.ToolsScreenRenderer
@@ -165,7 +167,7 @@ class MainActivity : Activity() {
         contentRoot.removeAllViews()
         when (section) {
             AppSection.CHAT -> renderChatScreen()
-            AppSection.TOOLS -> renderToolsScreen()
+            AppSection.PRODUCT -> renderProductScreen()
             AppSection.LOGS -> renderLogsScreen()
             AppSection.SETTINGS -> renderSettingsScreen()
         }
@@ -182,7 +184,7 @@ class MainActivity : Activity() {
         }
         return when (navigationController.activeSection) {
             AppSection.CHAT -> "Chat"
-            AppSection.TOOLS -> "Android Tools"
+            AppSection.PRODUCT -> "Use TouchPilot"
             AppSection.LOGS -> "Logs"
             AppSection.SETTINGS -> navigationController.activeSettingsPanel?.label ?: "Settings"
         }
@@ -277,13 +279,30 @@ class MainActivity : Activity() {
             contentRoot = contentRoot,
             toolExecutionController = toolExecutionController(),
             openAccessibilitySettings = ::openAccessibilitySettings,
-            refreshToolsScreen = { showSection(AppSection.TOOLS) },
+            refreshToolsScreen = { showSection(AppSection.SETTINGS) },
             hideKeyboard = ::hideKeyboard,
             bindKeyboardScrollSpacer = ::bindKeyboardScrollSpacer,
             getFocusSelectorIndex = { focusSelectorIndex },
             setFocusSelectorIndex = { focusSelectorIndex = it },
             getLastFocusInputArgs = { lastFocusInputArgs },
             setLastFocusInputArgs = { lastFocusInputArgs = it }
+        ).render()
+    }
+
+    private fun renderProductScreen() {
+        ProductScreenRenderer(
+            activity = this,
+            contentRoot = contentRoot,
+            skills = skillRegistry.enabledSkills(),
+            toolExecutionController = toolExecutionController(),
+            openAccessibilitySettings = ::openAccessibilitySettings,
+            showSection = ::showSection,
+            openSettingsTools = {
+                navigationController.openSettingsPanel(SettingsPanel.TOOLS)
+                showSection(AppSection.SETTINGS)
+            },
+            openSkillDetail = ::openSkillDetail,
+            refreshProductScreen = { showSection(AppSection.PRODUCT) }
         ).render()
     }
 
@@ -297,7 +316,8 @@ class MainActivity : Activity() {
                 }
 
                 override fun refreshToolsScreen() {
-                    showSection(AppSection.TOOLS)
+                    navigationController.openSettingsPanel(SettingsPanel.TOOLS)
+                    showSection(AppSection.SETTINGS)
                 }
             }
         )
@@ -361,6 +381,11 @@ class MainActivity : Activity() {
             currentProviderMode = ::currentProviderMode,
             openAccessibilitySettings = ::openAccessibilitySettings,
             hideKeyboard = ::hideKeyboard,
+            bindKeyboardScrollSpacer = ::bindKeyboardScrollSpacer,
+            getFocusSelectorIndex = { focusSelectorIndex },
+            setFocusSelectorIndex = { focusSelectorIndex = it },
+            getLastFocusInputArgs = { lastFocusInputArgs },
+            setLastFocusInputArgs = { lastFocusInputArgs = it },
             recordMcpResult = mcpResultStore::recordMcpResult,
             mcpResult = mcpResultStore::forMcp,
             refreshSettingsScreen = { showSection(AppSection.SETTINGS) }

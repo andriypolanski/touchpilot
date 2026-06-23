@@ -18,6 +18,7 @@ import dev.touchpilot.app.memory.Skill
 import dev.touchpilot.app.memory.SkillDetailFormatter
 import dev.touchpilot.app.memory.SkillRisk
 import dev.touchpilot.app.navigation.SettingsPanel
+import dev.touchpilot.app.runtime.ToolExecutionController
 import dev.touchpilot.app.ui.dp
 import dev.touchpilot.app.ui.TouchPilotTheme as Theme
 import dev.touchpilot.app.ui.RuntimeIndicator
@@ -35,6 +36,7 @@ import dev.touchpilot.app.ui.statusChip
 import dev.touchpilot.app.ui.summaryCard
 import dev.touchpilot.app.ui.timelineCard
 import dev.touchpilot.app.ui.withMargins
+import dev.touchpilot.app.ui.tools.ToolsScreenRenderer
 import org.json.JSONObject
 
 class SettingsScreenRenderer(
@@ -43,6 +45,7 @@ class SettingsScreenRenderer(
     private val preferences: SharedPreferences,
     private val skills: List<Skill>,
     private val localModelRuntime: LiteRtCommandModelRuntime,
+    private val toolExecutionController: ToolExecutionController,
     private val activeSettingsPanel: () -> SettingsPanel?,
     private val openSettingsPanel: (SettingsPanel) -> Unit,
     private val closeSettingsPanel: () -> Unit,
@@ -52,6 +55,11 @@ class SettingsScreenRenderer(
     private val currentProviderMode: () -> AgentProviderMode,
     private val openAccessibilitySettings: () -> Unit,
     private val hideKeyboard: (View) -> Unit,
+    private val bindKeyboardScrollSpacer: (View) -> Unit,
+    private val getFocusSelectorIndex: () -> Int,
+    private val setFocusSelectorIndex: (Int) -> Unit,
+    private val getLastFocusInputArgs: () -> Map<String, String>?,
+    private val setLastFocusInputArgs: (Map<String, String>?) -> Unit,
     private val recordMcpResult: (String) -> Unit,
     private val mcpResult: () -> String,
     private val refreshSettingsScreen: () -> Unit
@@ -68,6 +76,7 @@ class SettingsScreenRenderer(
         contentRoot.addView(settingsGoBackButton())
         when (panel) {
             SettingsPanel.SKILLS -> renderSkillsPanel()
+            SettingsPanel.TOOLS -> renderToolsPanel()
             SettingsPanel.MCP -> renderMcpPanel()
             SettingsPanel.CLOUD -> renderCloudPanel()
             SettingsPanel.RUNTIME -> renderRuntimePanel()
@@ -180,6 +189,22 @@ class SettingsScreenRenderer(
                 openAccessibilitySettings()
             }
         )
+    }
+
+    private fun renderToolsPanel() {
+        ToolsScreenRenderer(
+            activity = activity,
+            contentRoot = contentRoot,
+            toolExecutionController = toolExecutionController,
+            openAccessibilitySettings = openAccessibilitySettings,
+            refreshToolsScreen = refreshSettingsScreen,
+            hideKeyboard = hideKeyboard,
+            bindKeyboardScrollSpacer = bindKeyboardScrollSpacer,
+            getFocusSelectorIndex = getFocusSelectorIndex,
+            setFocusSelectorIndex = setFocusSelectorIndex,
+            getLastFocusInputArgs = getLastFocusInputArgs,
+            setLastFocusInputArgs = setLastFocusInputArgs
+        ).render()
     }
 
     private fun renderMcpPanel() {
@@ -377,6 +402,7 @@ class SettingsScreenRenderer(
                 }
                 id = when (panel) {
                     SettingsPanel.SKILLS -> R.id.settings_panel_skills_button
+                    SettingsPanel.TOOLS -> R.id.settings_panel_tools_button
                     SettingsPanel.MCP -> R.id.settings_panel_mcp_button
                     SettingsPanel.CLOUD -> R.id.settings_panel_cloud_button
                     SettingsPanel.RUNTIME -> R.id.settings_panel_runtime_button

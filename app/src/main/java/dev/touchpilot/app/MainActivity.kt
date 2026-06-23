@@ -305,8 +305,10 @@ class MainActivity : Activity() {
     }
 
     private fun runSkillFromProduct(skillId: String) {
-        skillRegistry.setActiveSkill(skillId)
-        showSection(AppSection.CHAT)
+        val skill = skillRegistry.allSkills().firstOrNull { it.id == skillId } ?: return
+        skillRegistry.setActiveSkill(skill.id)
+        val task = skill.examples.firstOrNull()?.takeIf { it.isNotBlank() } ?: skill.title
+        agentRunController.startFromChat(task)
     }
 
     private fun toolExecutionController(): ToolExecutionController {

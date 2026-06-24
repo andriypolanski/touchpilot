@@ -54,7 +54,7 @@ object ChatToolTextFormatter {
                 appendLine()
                 appendLine()
                 append("Result: ")
-                append(cardModel.message)
+                append(SensitiveTextRedactor.redact(cardModel.message))
             }
             if (!cardModel.verificationStatus.isNullOrBlank()) {
                 appendLine()

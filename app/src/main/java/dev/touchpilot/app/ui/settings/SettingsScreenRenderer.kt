@@ -49,6 +49,8 @@ class SettingsScreenRenderer(
     private val activeSettingsPanel: () -> SettingsPanel?,
     private val openSettingsPanel: (SettingsPanel) -> Unit,
     private val closeSettingsPanel: () -> Unit,
+    private val isSkillEnabled: (String) -> Boolean,
+    private val setSkillEnabled: (String, Boolean) -> Unit,
     private val selectedSkillId: () -> String?,
     private val commitSelectedSkill: (String?) -> Unit,
     private val openSkillDetail: (String) -> Unit,
@@ -115,29 +117,39 @@ class SettingsScreenRenderer(
             return
         }
 
-        contentRoot.addView(
-            skillSelectRow(
-                title = "No skill",
-                subtitle = "Run TouchPilot without a skill scope",
-                badge = null,
-                selected = selectedSkillId() == null,
-                onSelect = { commitSelectedSkill(null) },
-                onViewDetails = null
-            )
-        )
         skills.forEach { skill ->
+            val enabled = isSkillEnabled(skill.id)
             val description = SkillDetailFormatter.displayDescription(skill)
             contentRoot.addView(
                 skillSelectRow(
                     title = skill.title,
                     subtitle = description.ifBlank { "No description provided" },
                     badge = SkillDetailFormatter.formatLabel(skill.risk),
+                    enabled = enabled,
                     selected = selectedSkillId() == skill.id,
-                    onSelect = { commitSelectedSkill(skill.id) },
+                    onSelect = if (enabled) { { commitSelectedSkill(skill.id) } } else null,
+                    onToggleEnabled = {
+                        setSkillEnabled(skill.id, !enabled)
+                        if (enabled && selectedSkillId() == skill.id) {
+                            commitSelectedSkill(null)
+                        }
+                    },
                     onViewDetails = { openSkillDetail(skill.id) }
                 )
             )
         }
+        contentRoot.addView(
+            skillSelectRow(
+                title = "No skill",
+                subtitle = "Run TouchPilot without a skill scope",
+                badge = null,
+                enabled = true,
+                selected = selectedSkillId() == null,
+                onSelect = { commitSelectedSkill(null) },
+                onToggleEnabled = null,
+                onViewDetails = null
+            )
+        )
     }
 
     private fun skillsPanelIntro(): View {
@@ -174,11 +186,13 @@ class SettingsScreenRenderer(
                     title = option.label(),
                     subtitle = option.description(),
                     badge = null,
+                    enabled = true,
                     selected = option == mode,
                     onSelect = {
                         preferences.edit().putString("agent_provider_mode", option.name).apply()
                         refreshSettingsScreen()
                     },
+                    onToggleEnabled = null,
                     onViewDetails = null
                 )
             )
@@ -438,19 +452,26 @@ class SettingsScreenRenderer(
         title: String,
         subtitle: String,
         badge: String?,
+        enabled: Boolean,
         selected: Boolean,
-        onSelect: () -> Unit,
+        onSelect: (() -> Unit)?,
+        onToggleEnabled: (() -> Unit)?,
         onViewDetails: (() -> Unit)?
     ): View {
         val card = MaterialCardView(activity).apply {
             setCardBackgroundColor(Theme.Card)
-            strokeColor = if (selected) Theme.Accent else Theme.StrokeDark
-            strokeWidth = if (selected) 2 else 1
+            strokeColor = when {
+                !enabled -> Theme.StrokeDark
+                selected -> Theme.Accent
+                else -> Theme.StrokeDark
+            }
+            strokeWidth = if (selected && enabled) 2 else 1
             radius = 8f
             cardElevation = 0f
             isClickable = true
             isFocusable = true
-            setOnClickListener { onSelect() }
+            isEnabled = enabled || onSelect != null
+            setOnClickListener { onSelect?.invoke() }
         }
         val content = LinearLayout(activity).apply {
             orientation = LinearLayout.VERTICAL
@@ -475,7 +496,7 @@ class SettingsScreenRenderer(
             TextView(activity).apply {
                 text = subtitle
                 textSize = 12f
-                setTextColor(Theme.MutedText)
+                setTextColor(if (enabled) Theme.MutedText else Theme.StrokeDark)
                 setPadding(0, 3, 0, 0)
             }
         )
@@ -486,6 +507,15 @@ class SettingsScreenRenderer(
                     badge,
                     accent = badge != SkillDetailFormatter.formatLabel(SkillRisk.LOW)
                 )
+            )
+        }
+        if (onToggleEnabled != null) {
+            row.addView(
+                activity.secondaryButton(if (enabled) "Disable" else "Enable") {
+                    onToggleEnabled()
+                }.apply {
+                    minHeight = 38
+                }.withMargins(left = activity.dp(10))
             )
         }
         content.addView(row)

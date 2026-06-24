@@ -12,6 +12,8 @@ import dev.touchpilot.app.androidcontrol.ForegroundAppInfo
 import dev.touchpilot.app.security.DefaultActionPolicy
 import dev.touchpilot.app.security.PolicyDecision
 import dev.touchpilot.app.security.SensitiveTextRedactor
+import dev.touchpilot.app.security.ToolApprovalProvider
+import dev.touchpilot.app.security.ToolApprovalRequest
 import dev.touchpilot.app.security.ToolPolicyRequest
 import dev.touchpilot.app.security.ToolSource
 import dev.touchpilot.app.screen.NodeBounds
@@ -35,6 +37,7 @@ import dev.touchpilot.app.tools.targets.TypeTextTarget
 class AndroidToolExecutor(
     private val context: Context,
     private val policy: DefaultActionPolicy = DefaultActionPolicy(),
+    private val approvalProvider: ToolApprovalProvider? = null,
     private val targetResolver: TargetResolver = TargetResolver(),
     private val scrollResolver: ScrollResolver = ScrollResolver(targetResolver),
     private val retryPolicy: AndroidToolRetryPolicy = AndroidToolRetryPolicy(),
@@ -84,8 +87,15 @@ class AndroidToolExecutor(
                         record(name, "policy=deny", false, decision.userMessage)
                         return ToolResult(false, decision.userMessage)
                     }
-                    is PolicyDecision.Allow,
-                    is PolicyDecision.RequireApproval -> Unit
+                    is PolicyDecision.Allow -> Unit
+                    is PolicyDecision.RequireApproval -> {
+                        val approvalRequest = ToolApprovalRequest(spec, args, decision)
+                        val approved = approvalProvider?.approve(approvalRequest) ?: false
+                        if (!approved) {
+                            record(name, "policy=require_approval", false, decision.userMessage)
+                            return ToolResult(false, decision.userMessage)
+                        }
+                    }
                 }
             }
 

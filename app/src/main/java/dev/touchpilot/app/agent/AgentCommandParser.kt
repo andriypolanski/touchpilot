@@ -39,23 +39,39 @@ object AgentCommandParser {
             ?.getOrNull(1)
             ?.trim()
 
-        // Strict pass first: well-formed model output is parsed unchanged.
-        if (fenced != null) {
-            findBestJsonObject(fenced)?.let { return it }
-        }
-        findBestJsonObject(trimmed)?.let { return it }
+        // Prefer an object that actually carries a "tool" or "final" key. org.json
+        // is lenient about unquoted keys, so a malformed object (e.g. smart-quoted
+        // keys) can "parse" into a candidate without the real command keys — try
+        // strict first, then the repaired text, before settling for any object.
+        findCommandObject(fenced)?.let { return it }
+        findCommandObject(trimmed)?.let { return it }
+        findCommandObject(fenced?.let(LenientJson::repair))?.let { return it }
+        findCommandObject(LenientJson.repair(trimmed))?.let { return it }
 
-        // Lenient fallback: repair the recoverable defects models emit around a
-        // valid command (smart quotes, trailing commas, comments) and retry.
-        if (fenced != null) {
-            findBestJsonObject(LenientJson.repair(fenced))?.let { return it }
-        }
-        findBestJsonObject(LenientJson.repair(trimmed))?.let { return it }
+        // Last resort: any parseable object (unchanged fallback), strict then repaired.
+        findAnyObject(fenced)?.let { return it }
+        findAnyObject(trimmed)?.let { return it }
+        findAnyObject(fenced?.let(LenientJson::repair))?.let { return it }
+        findAnyObject(LenientJson.repair(trimmed))?.let { return it }
 
         error("Model did not return a JSON object: $raw")
     }
 
-    private fun findBestJsonObject(text: String): String? {
+    /** The last parseable object that carries a `tool` or `final` key, if any. */
+    private fun findCommandObject(text: String?): String? {
+        if (text == null) return null
+        return parseObjects(text)
+            .lastOrNull { (_, json) -> json.has("tool") || json.has("final") }
+            ?.first
+    }
+
+    /** The last parseable object of any shape, if any. */
+    private fun findAnyObject(text: String?): String? {
+        if (text == null) return null
+        return parseObjects(text).lastOrNull()?.first
+    }
+
+    private fun parseObjects(text: String): List<Pair<String, JSONObject>> {
         val parsedCandidates = mutableListOf<Pair<String, JSONObject>>()
         var i = 0
         while (i < text.length) {
@@ -75,9 +91,6 @@ object AgentCommandParser {
             }
         }
         return parsedCandidates
-            .lastOrNull { (_, json) -> json.has("tool") || json.has("final") }
-            ?.first
-            ?: parsedCandidates.lastOrNull()?.first
     }
 
     private fun findMatchingCloseBrace(text: String, startIndex: Int): Int {

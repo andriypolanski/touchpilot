@@ -29,6 +29,13 @@ data class ToolResult(
 )
 
 object AndroidToolCatalog {
+    /**
+     * Frozen Tool API contract version (see docs/CONTRACTS.md). Tool names and
+     * argument shapes below are additive-only as of this version: removing or
+     * repurposing a tool name or argument requires a version bump.
+     */
+    const val CATALOG_VERSION = 1
+
     val initialTools = listOf(
         ToolSpec(
             name = "observe_screen",

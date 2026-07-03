@@ -24,10 +24,16 @@ enum class SkillRisk {
 
 /** How a bundled `SKILL.md` file was parsed. */
 enum class SkillFormat {
-    /** Legacy heading + "Allowed initial tools:" list. Carries no structured metadata. */
+    /**
+     * Legacy heading + "Allowed initial tools:" list. Carries no structured
+     * metadata. Experimental/deprecated as of docs/CONTRACTS.md: no bundled
+     * skill uses this format anymore, and it does not get the frozen-contract
+     * guarantee. Kept only for hand-authored, unmigrated third-party
+     * `SKILL.md` files; slated for removal after 1.0.
+     */
     LEGACY_V1,
 
-    /** Skills v2 front matter (see docs/SKILLS.md). */
+    /** Skills v2 front matter (see docs/SKILLS.md). Frozen for 1.0. */
     V2
 }
 

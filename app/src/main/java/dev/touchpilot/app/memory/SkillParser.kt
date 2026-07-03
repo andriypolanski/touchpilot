@@ -11,9 +11,11 @@ package dev.touchpilot.app.memory
  * [SkillParseResult.Invalid] rather than loading a partial skill.
  *
  * Files without front matter fall back to the legacy v1 reader (heading +
- * "Allowed initial tools:" list) so the not-yet-upgraded bundled pack keeps
- * loading until issue #229 migrates it to v2. The legacy path stays permissive
- * (it does not validate tool names) to preserve current behavior.
+ * "Allowed initial tools:" list). Every bundled skill migrated to v2 in issue
+ * #229; the legacy path now only exists for hand-authored, unmigrated
+ * third-party `SKILL.md` files. It stays permissive (it does not validate
+ * tool names) to preserve current behavior, but per docs/CONTRACTS.md it is
+ * experimental/deprecated and does not get the frozen-contract guarantee.
  *
  * The parser is pure — no Android dependency — so it is fully unit-testable.
  */

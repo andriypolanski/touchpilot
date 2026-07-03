@@ -53,6 +53,7 @@ data class WorkflowDefinition(
     }
 
     companion object {
+        /** Frozen Workflow schema contract version for 1.0 (see docs/CONTRACTS.md). */
         const val CURRENT_VERSION = 1
 
         fun fromJson(json: JSONObject): WorkflowDefinition {

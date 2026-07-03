@@ -98,7 +98,7 @@ class WorkflowReplayRepairPlannerTest {
 
         assertNotNull(retried)
         assertEquals(1, retried.steps.size)
-        assertEquals("reopen-settings-open-settings-repaired-retry-2", retried.id)
+        assertEquals("open-settings-open-settings-repaired-retry-2", retried.id)
         assertEquals("tap-toggle", retried.steps[0].id)
         assertEquals("tap", retried.steps[0].tool)
         assertEquals(listOf(WorkflowParameter(name = "second_target", default = "Bluetooth")), retried.parameters)

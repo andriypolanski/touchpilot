@@ -1,5 +1,11 @@
 # MCP
 
+**Contract status:** Experimental — not frozen for 1.0. The MCP tool-call
+contract (`McpModels.kt`) and the local extension plugin API manifest
+(`PluginApiManifest.kt`) may change shape without a version bump until MCP is
+merged into the main agent loop. See
+[CONTRACTS.md](CONTRACTS.md#experimental-contracts).
+
 Phase 4 adds a small MCP client to the Android app.
 
 The client uses HTTP JSON-RPC and implements the core lifecycle needed to

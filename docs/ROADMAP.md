@@ -618,7 +618,10 @@ stable product
 Deliverables:
 
 - Stable architecture.
-- Stable local model/tool/skill contracts.
+- Stable, versioned local model/tool/skill/workflow/policy contracts, audited
+  and frozen with a changelog (issue #389, see
+  [docs/CONTRACTS.md](CONTRACTS.md)). The memory entry schema does not exist
+  yet and is deferred to Milestone 17.
 - Signed APK.
 - Public documentation.
 - Skill authoring guide.
@@ -911,7 +914,9 @@ TouchPilot host
 
 Deliverables:
 
-- Freeze and version the tool, skill, workflow, memory, and policy contracts.
+- Version and freeze the memory entry schema introduced in Milestone 17, and
+  re-audit the tool, skill, workflow, and policy contracts frozen at 1.0 (see
+  [docs/CONTRACTS.md](CONTRACTS.md)) for any 2.0 breaking changes.
 - Publish the host-oriented documentation set and release process.
 - Keep extension boundaries explicit, revocable, and auditable.
 - Keep optional local intelligence as an enhancement, not a requirement.

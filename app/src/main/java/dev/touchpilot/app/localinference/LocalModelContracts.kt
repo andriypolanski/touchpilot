@@ -8,6 +8,12 @@ import dev.touchpilot.app.tools.ToolRisk
 import org.json.JSONArray
 import org.json.JSONObject
 
+/**
+ * Command-provider request/response JSON exchanged with the local model each
+ * turn. Experimental per docs/CONTRACTS.md: unlike [LocalModelManifest]'s
+ * `contract_version`, this shape has no version field of its own yet, so it
+ * is not covered by the 1.0 contract freeze.
+ */
 data class LocalModelRequest(
     val task: String,
     val context: String,

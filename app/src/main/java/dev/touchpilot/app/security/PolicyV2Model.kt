@@ -3,9 +3,11 @@ package dev.touchpilot.app.security
 import dev.touchpilot.app.tools.ToolRisk
 
 /**
- * Safety/Policy v2 vocabulary. This file is intentionally model-only so the
- * first Milestone 7 PR can establish stable concepts without changing runtime
- * enforcement paths yet.
+ * Safety/Policy v2 vocabulary. Frozen for 1.0 as of docs/CONTRACTS.md
+ * (`PolicyV2Defaults.POLICY_CONTRACT_VERSION`): the enums below and the
+ * default decision tables in [PolicyV2Defaults] are additive-only. There is
+ * no external policy file format — `PolicyRule` is constructed in code by
+ * `PolicyEngine`, not parsed from a document. See docs/POLICY.md.
  */
 enum class PolicySubject {
     TOOL,
@@ -90,6 +92,9 @@ data class PolicyEvaluation(
 }
 
 object PolicyV2Defaults {
+    /** Frozen policy vocabulary/decision-table contract version (see docs/POLICY.md). */
+    const val POLICY_CONTRACT_VERSION = 1
+
     fun decisionForToolRisk(risk: ToolRisk): PolicyDecisionKind {
         return when (risk) {
             ToolRisk.LOW -> PolicyDecisionKind.ALLOW

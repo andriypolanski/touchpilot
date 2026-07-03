@@ -115,6 +115,14 @@ behind validation, skill allowlists, approval policy, and local logs.
 
 ## LiteRT Command Router Asset Contract
 
+**Contract status:** Frozen for 1.0 at `contract_version: 1`
+(`LocalModelManifest.SUPPORTED_CONTRACT_VERSION`). See
+[CONTRACTS.md](CONTRACTS.md). The manifest fields below are the frozen
+contract. The per-turn request/response JSON shape the model runtime consumes
+and emits (`LocalModelContracts.kt`) is a separate, still-experimental
+contract with no version field of its own yet — see
+[CONTRACTS.md](CONTRACTS.md#experimental-contracts).
+
 The first local model target is a small command router, not a general chat
 model. The Android app currently bundles a tiny LiteRT model to exercise real
 on-device inference and looks for:
@@ -257,3 +265,12 @@ References:
 - https://docs.pytorch.org/executorch/stable/using-executorch-android.html
 - https://ai.google.dev/edge/litert/android
 - https://github.com/ggml-org/llama.cpp/blob/master/docs/android.md
+
+## Changelog
+
+`contract_version 1` (1.0 freeze, issue #389)
+: Baseline freeze of the manifest fields under
+  [LiteRT Command Router Asset Contract](#litert-command-router-asset-contract).
+  Additive-only going forward; a breaking manifest change requires bumping
+  `contract_version` and `LocalModelManifest.SUPPORTED_CONTRACT_VERSION`
+  together. The request/response JSON shape stays experimental and unversioned.

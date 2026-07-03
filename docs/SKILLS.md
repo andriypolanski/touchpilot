@@ -11,6 +11,11 @@ Skills are advisory context for the local agent. They can narrow tool
 visibility and describe successful task behavior, but they do not bypass tool
 validation, skill allowlists, approval prompts, or safety policy.
 
+**Contract status:** Skills v2 (`SkillFormat.V2`) is frozen for 1.0. The
+legacy heading format (`SkillFormat.LEGACY_V1`, see
+[below](#legacy-v1-format-deprecated)) is experimental/deprecated. See
+[CONTRACTS.md](CONTRACTS.md).
+
 ## Skills v2 Format
 
 Each `SKILL.md` should start with a front matter block followed by normal
@@ -116,3 +121,24 @@ The Skills v2 runtime should use this contract as follows:
 - Tool execution enforces the active skill allowlist outside the model.
 - Approval and policy layers may use skill risk as additional context, never as
   a reason to lower caution.
+
+## Legacy v1 Format (Deprecated)
+
+Files whose first non-blank line is not `---` fall back to a legacy reader: an
+`# Heading` for the title and an `Allowed initial tools:` Markdown list for
+`allowed_tools`. It carries no `id`, `description`, `risk`, `aliases`,
+`examples`, or `success_criteria` metadata, and it does not validate that
+listed tools exist.
+
+Every bundled skill migrated to v2 in issue #229, so this path is unreachable
+for shipped assets. It remains for hand-authored, unmigrated third-party
+`SKILL.md` files, but per [CONTRACTS.md](CONTRACTS.md) it is experimental: it
+does not get the 1.0 freeze guarantee and is slated for removal after 1.0
+authors have had a release cycle to migrate to v2.
+
+## Changelog
+
+`Schema v2` (1.0 freeze, issue #389)
+: Baseline freeze. The required/optional field sets above are additive-only
+  going forward. Legacy v1 explicitly marked experimental/deprecated; no
+  bundled skill uses it.

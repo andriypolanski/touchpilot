@@ -11,6 +11,14 @@ Workflow files are designed to be:
 - **Inspectable** — every step, argument, and expected state is human-readable
 - **Replayable** — consumed by the workflow replay engine (Milestone 10)
 
+**Contract status:** Frozen for 1.0 at `version: 1`
+(`WorkflowDefinition.CURRENT_VERSION`). See [CONTRACTS.md](CONTRACTS.md). The
+frozen contract is this file-facing JSON schema — the file's `expected_state`
+predicates parse into `WorkflowExpectedState`. The replay engine's internal
+`ExpectedState` sealed class (`WorkflowModels.kt`) is a separate, richer,
+runtime-only representation bridged by a lossy converter; it is an
+implementation detail of the replay engine, not part of this frozen contract.
+
 ## File Location
 
 Bundled example workflows may live under:
@@ -249,3 +257,11 @@ app/src/main/java/dev/touchpilot/app/workflow/
 - Workflow replay engine execution
 - Trace capture UI and storage paths
 - Workflow review UI
+
+## Changelog
+
+`version 1` (1.0 freeze, issue #389)
+: Baseline freeze. The required/optional top-level fields, step fields, and
+  expected-state predicates above are additive-only going forward; a breaking
+  change requires bumping `version` and updating `WorkflowDefinitionParser`'s
+  version gate.

@@ -2,6 +2,9 @@
 
 Tools are the only way an agent may affect the Android device.
 
+**Contract status:** Frozen for 1.0 at `CATALOG_VERSION = 1`
+(`AndroidToolCatalog.CATALOG_VERSION`). See [CONTRACTS.md](CONTRACTS.md).
+
 ## Tool Shape
 
 ```json
@@ -184,3 +187,11 @@ Failures must be explicit:
   }
 }
 ```
+
+## Changelog
+
+`CATALOG_VERSION 1` (1.0 freeze, issue #389)
+: Baseline freeze. The 23 tools listed above and their argument contracts are
+  additive-only going forward: adding a new tool or a new optional argument
+  does not require a version bump, but removing or repurposing an existing
+  tool name or required argument does.

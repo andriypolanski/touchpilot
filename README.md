@@ -113,6 +113,19 @@ skills live under `app/src/main/assets/skills/`.
 See [Code Structure](docs/CODE_STRUCTURE.md) for the current package layout and
 future module-split direction.
 
+## Frozen Contracts
+
+TouchPilot 1.0 freezes the tool, skill, workflow, and policy contracts a
+maintainer or third-party author builds against (issue #389):
+
+- [Contracts](docs/CONTRACTS.md) — audit checklist, version registry, and
+  changelog since Milestone 14
+- [Tool Spec](docs/TOOL_SPEC.md), [Skills](docs/SKILLS.md),
+  [Workflows](docs/WORKFLOWS.md), [Policy](docs/POLICY.md) — per-contract
+  schema docs
+- [Local Inference](docs/LOCAL_INFERENCE.md) — LiteRT command router manifest
+  contract
+
 ## Compatibility Testing
 
 TouchPilot tracks Android version and OEM skin compatibility through a local,

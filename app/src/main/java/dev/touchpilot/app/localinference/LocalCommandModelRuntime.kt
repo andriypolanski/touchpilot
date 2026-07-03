@@ -42,7 +42,10 @@ data class LocalModelManifest(
     val isValid: Boolean get() = validationErrors().isEmpty()
 
     companion object {
-        /** Highest input/output contract version this build of the runtime understands. */
+        /**
+         * Highest input/output contract version this build of the runtime
+         * understands. Frozen for 1.0 (see docs/CONTRACTS.md).
+         */
         const val SUPPORTED_CONTRACT_VERSION = 1
 
         const val DefaultRole = "command_router"

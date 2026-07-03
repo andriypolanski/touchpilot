@@ -41,6 +41,7 @@ class ToolVerifier(
                 )
             )
             "wait_for_element" -> verifyWaitForElement(args, after)
+            "wait_for_element_gone" -> verifyWaitForElementGone(args, after)
             "wait_for_app" -> ToolVerificationResult.Passed(
                 reason = "foreground app matched requested target",
                 data = mapOf(
@@ -292,6 +293,28 @@ class ToolVerifier(
             ToolVerificationResult.Failed(
                 reason = "no element matched the query after the wait",
                 data = mapOf("match_mode" to query.match.wireName)
+            )
+        }
+    }
+
+    private fun verifyWaitForElementGone(
+        args: Map<String, String>,
+        after: ScreenContext,
+    ): ToolVerificationResult {
+        val query = WaitForElement.queryFromArgs(args)
+        val matches = findElementMatcher.match(after, query)
+        return if (matches.isEmpty()) {
+            ToolVerificationResult.Passed(
+                reason = "no matching element is present after the wait",
+                data = mapOf("match_mode" to query.match.wireName)
+            )
+        } else {
+            ToolVerificationResult.Failed(
+                reason = "a matching element is still present after the wait",
+                data = mapOf(
+                    "count" to matches.size.toString(),
+                    "match_mode" to query.match.wireName,
+                )
             )
         }
     }

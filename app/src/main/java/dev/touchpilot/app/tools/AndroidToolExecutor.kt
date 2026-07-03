@@ -250,6 +250,9 @@ class AndroidToolExecutor(
             "wait_for_element" -> {
                 executeWaitForElement(args)
             }
+            "wait_for_element_gone" -> {
+                executeWaitForElementGone(args)
+            }
             "focus_input" -> {
                 val text = args["text"].orEmpty()
                 val nodeId = args["node_id"].orEmpty()
@@ -404,6 +407,32 @@ class AndroidToolExecutor(
 
         val result = WaitForElement.timeoutResult(args, timeout)
         record("wait_for_element", logArgs, false, result.message)
+        return result
+    }
+
+    private fun executeWaitForElementGone(args: Map<String, String>): ToolResult {
+        val query = WaitForElement.queryFromArgs(args)
+        val timeout = WaitForElement.timeoutMs(args)
+        val logArgs = WaitForElement.logArgs(args, timeout)
+        val deadline = System.currentTimeMillis() + timeout
+        var latest = AccessibilityBridge.observeScreenContext()
+        var lastMatchCount = 0
+
+        while (System.currentTimeMillis() <= deadline) {
+            val matches = findElementMatcher.match(latest, query)
+            lastMatchCount = matches.size
+            if (matches.isEmpty()) {
+                record("wait_for_element_gone", logArgs, true, "waitForElementGone")
+                return WaitForElementGone.goneResult(args)
+            }
+            val remainingMs = deadline - System.currentTimeMillis()
+            if (remainingMs <= 0L) break
+            sleeper(minOf(150L, remainingMs))
+            latest = AccessibilityBridge.observeScreenContext()
+        }
+
+        val result = WaitForElementGone.timeoutResult(args, timeout, lastMatchCount)
+        record("wait_for_element_gone", logArgs, false, result.message)
         return result
     }
 

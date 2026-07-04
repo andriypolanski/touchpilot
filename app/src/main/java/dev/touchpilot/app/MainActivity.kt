@@ -642,6 +642,7 @@ class MainActivity : Activity() {
             selectedSkillId = { skillRegistry.activeSkill()?.id },
             closeSkillDetail = ::closeSkillDetail,
             commitSelectedSkill = ::commitSelectedSkill,
+            runSkill = ::runSkill,
             refreshSettingsScreen = { showSection(AppSection.SETTINGS) }
         ).render()
     }

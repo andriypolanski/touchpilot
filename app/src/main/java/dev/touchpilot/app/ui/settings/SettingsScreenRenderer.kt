@@ -39,6 +39,7 @@ import dev.touchpilot.app.demonstration.DemonstrationStatus
 import dev.touchpilot.app.demonstration.formatting.DemonstrationSummaryFormatter
 import dev.touchpilot.app.navigation.SettingsPanel
 import dev.touchpilot.app.runtime.ToolExecutionController
+import dev.touchpilot.app.tools.ToolExecutionLog
 import dev.touchpilot.app.ui.dp
 import dev.touchpilot.app.ui.TouchPilotTheme as Theme
 import dev.touchpilot.app.ui.RuntimeIndicator
@@ -618,6 +619,37 @@ class SettingsScreenRenderer(
                         permissionStore.revoke(extensionTarget)
                         refreshSettingsScreen()
                     }
+                )
+            }
+        }
+
+        val extensionAuditEntries = ToolExecutionLog.recentEntries()
+            .filter { it.type == "capability" && it.source == "local_extension" }
+            .take(5)
+        contentRoot.addView(activity.formLabel("Extension audit log"))
+        if (extensionAuditEntries.isEmpty()) {
+            contentRoot.addView(
+                activity.timelineCard(
+                    title = "No local extension activity yet",
+                    body = "Extension tool calls will appear here after a local extension is registered and used."
+                )
+            )
+        } else {
+            extensionAuditEntries.forEach { entry ->
+                contentRoot.addView(
+                    activity.timelineCard(
+                        title = "${entry.name} · ${entry.status}",
+                        body = buildString {
+                            appendLine("Target: ${entry.target.ifBlank { "unknown" }}")
+                            appendLine("Result: ${entry.result.ifBlank { "n/a" }}")
+                            if (entry.policyDecision.isNotBlank()) {
+                                appendLine("Policy: ${entry.policyDecision}")
+                            }
+                            if (entry.payloadSummary.isNotBlank()) {
+                                appendLine("Payload: ${entry.payloadSummary}")
+                            }
+                        }.trim(),
+                    )
                 )
             }
         }

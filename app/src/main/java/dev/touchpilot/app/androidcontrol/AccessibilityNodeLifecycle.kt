@@ -49,3 +49,50 @@ internal inline fun walkUpFrom(
         parentsToRecycle.forEach { it.recycleSafely() }
     }
 }
+
+/**
+ * Depth-first search that recycles sibling branches that do not contain a match.
+ */
+internal fun AccessibilityNodeInfo.findNodeRecycling(
+    predicate: (AccessibilityNodeInfo) -> Boolean
+): AccessibilityNodeInfo? {
+    if (predicate(this)) return this
+
+    for (index in 0 until childCount) {
+        val child = getChild(index) ?: continue
+        val found = try {
+            child.findNodeRecycling(predicate)
+        } catch (e: Exception) {
+            child.recycleSafely()
+            throw e
+        }
+        if (found != null) return found
+        child.recycleSafely()
+    }
+
+    return null
+}
+
+/**
+ * Depth-first collection that recycles child subtrees with no matches.
+ *
+ * @return `true` when [this] node or any descendant matched [predicate].
+ */
+internal fun AccessibilityNodeInfo.collectNodesRecycling(
+    predicate: (AccessibilityNodeInfo) -> Boolean,
+    result: MutableList<AccessibilityNodeInfo>
+): Boolean {
+    val matchesSelf = predicate(this)
+    if (matchesSelf) result.add(this)
+
+    var subtreeHasMatch = matchesSelf
+    for (index in 0 until childCount) {
+        val child = getChild(index) ?: continue
+        val childHasMatch = child.collectNodesRecycling(predicate, result)
+        if (!childHasMatch) {
+            child.recycleSafely()
+        }
+        subtreeHasMatch = subtreeHasMatch || childHasMatch
+    }
+    return subtreeHasMatch
+}

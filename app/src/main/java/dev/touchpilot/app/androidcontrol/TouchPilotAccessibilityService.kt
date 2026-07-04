@@ -467,38 +467,15 @@ class TouchPilotAccessibilityService : AccessibilityService() {
     private fun findNode(
         node: AccessibilityNodeInfo,
         predicate: (AccessibilityNodeInfo) -> Boolean
-    ): AccessibilityNodeInfo? {
-        if (predicate(node)) return node
-
-        for (index in 0 until node.childCount) {
-            val child = node.getChild(index) ?: continue
-            val found = findNode(child, predicate)
-            if (found != null) return found
-            child.recycleSafely()
-        }
-
-        return null
-    }
+    ): AccessibilityNodeInfo? = node.findNodeRecycling(predicate)
 
     private fun findAllNodes(
         node: AccessibilityNodeInfo,
         predicate: (AccessibilityNodeInfo) -> Boolean
     ): List<AccessibilityNodeInfo> {
         val result = mutableListOf<AccessibilityNodeInfo>()
-        collectNodes(node, predicate, result)
+        node.collectNodesRecycling(predicate, result)
         return result
-    }
-
-    private fun collectNodes(
-        node: AccessibilityNodeInfo,
-        predicate: (AccessibilityNodeInfo) -> Boolean,
-        result: MutableList<AccessibilityNodeInfo>
-    ) {
-        if (predicate(node)) result.add(node)
-        for (index in 0 until node.childCount) {
-            val child = node.getChild(index) ?: continue
-            collectNodes(child, predicate, result)
-        }
     }
 
     private fun findNodeById(root: AccessibilityNodeInfo, nodeId: String): AccessibilityNodeInfo? {
@@ -518,7 +495,11 @@ class TouchPilotAccessibilityService : AccessibilityService() {
                     child.recycleSafely()
                 }
             }
-            current = next ?: return null
+            if (next == null) {
+                if (current !== root) current.recycleSafely()
+                return null
+            }
+            current = next
         }
 
         return current

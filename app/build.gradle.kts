@@ -39,6 +39,8 @@ dependencies {
     implementation("com.google.ai.edge.litert:litert:1.4.2")
     testImplementation("org.json:json:20250517")
     testImplementation(kotlin("test"))
+    testImplementation("junit:junit:4.13.2")
+    testImplementation("org.robolectric:robolectric:4.14.1")
     androidTestImplementation("androidx.test:runner:1.6.2")
     androidTestImplementation("androidx.test.ext:junit:1.2.1")
 }

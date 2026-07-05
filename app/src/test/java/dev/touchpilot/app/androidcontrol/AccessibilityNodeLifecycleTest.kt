@@ -56,6 +56,31 @@ class AccessibilityNodeLifecycleTest {
     }
 
     @Test
+    fun useFoundNodeGeneric_deepTree_match_recyclesWinningPathAfterUse() {
+        val recycled = mutableSetOf<String>()
+        val targetPath = listOf(1, 0, 1)
+        val root = FakeNode.buildWideTree(
+            branchingFactor = 3,
+            depth = 8,
+            targetPath = targetPath,
+        )
+
+        val matched = useFoundNodeGeneric(
+            root = root,
+            childCount = { it.children.size },
+            getChild = { node, index -> node.children.getOrNull(index) },
+            recycle = { recycled += it.id },
+            predicate = { it.label == "target" },
+        ) { node -> node.label }
+
+        assertEquals("target", matched)
+        assertFalse(recycled.contains("root"))
+        assertTrue(recycled.contains("root.1"))
+        assertTrue(recycled.any { it.startsWith("root.1.0.1") })
+        assertTrue(recycled.size > 3)
+    }
+
+    @Test
     fun depthFirstCollectRecycling_deepTree_recyclesOnlyNonMatchingSubtrees() {
         val recycled = mutableSetOf<String>()
         val targetPath = listOf(2, 1, 0)
@@ -80,6 +105,30 @@ class AccessibilityNodeLifecycleTest {
         assertFalse(recycled.contains("root"))
         assertFalse(recycled.contains(matches.single().id))
         assertTrue(recycled.isNotEmpty())
+    }
+
+    @Test
+    fun useMatchingNodesGeneric_deepTree_match_recyclesRetainedNodesAfterUse() {
+        val recycled = mutableSetOf<String>()
+        val targetPath = listOf(2, 1, 0)
+        val root = FakeNode.buildWideTree(
+            branchingFactor = 3,
+            depth = 8,
+            targetPath = targetPath,
+        )
+
+        val labels = useMatchingNodesGeneric(
+            root = root,
+            childCount = { it.children.size },
+            getChild = { node, index -> node.children.getOrNull(index) },
+            recycle = { recycled += it.id },
+            predicate = { it.label == "target" },
+        ) { matches -> matches.map { it.label } }
+
+        assertEquals(listOf("target"), labels)
+        assertFalse(recycled.contains("root"))
+        assertTrue(recycled.contains("root.2"))
+        assertTrue(recycled.any { it.startsWith("root.2.1") })
     }
 
     private fun wideTreeNodeCount(branchingFactor: Int, depth: Int): Int {

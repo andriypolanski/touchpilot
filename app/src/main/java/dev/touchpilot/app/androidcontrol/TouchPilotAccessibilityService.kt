@@ -102,21 +102,22 @@ class TouchPilotAccessibilityService : AccessibilityService() {
 
     fun tapByText(text: String): Boolean {
         return useActiveRoot { root ->
-            val node = findNode(root) { candidate ->
+            root.useFoundNode({ candidate ->
                 val label = candidate.text?.toString()
                     ?: candidate.contentDescription?.toString()
                     ?: ""
                 label.contains(text, ignoreCase = true)
-            } ?: return@useActiveRoot false
-
-            clickNodeOrParent(node)
+            }) { node ->
+                clickNodeOrParent(node)
+            } ?: false
         } ?: false
     }
 
     fun tapByNodeId(nodeId: String): Boolean {
         return useActiveRoot { root ->
-            val node = findNodeById(root, nodeId) ?: return@useActiveRoot false
-            clickNodeOrParent(node) || tapNodeCenter(node)
+            root.useNodeById(nodeId) { node ->
+                clickNodeOrParent(node) || tapNodeCenter(node)
+            } ?: false
         } ?: false
     }
 
@@ -180,8 +181,9 @@ class TouchPilotAccessibilityService : AccessibilityService() {
 
     fun longPressByNodeId(nodeId: String): Boolean {
         return useActiveRoot { root ->
-            val node = findNodeById(root, nodeId) ?: return@useActiveRoot false
-            longClickNodeOrParent(node) || longPressNodeCenter(node)
+            root.useNodeById(nodeId) { node ->
+                longClickNodeOrParent(node) || longPressNodeCenter(node)
+            } ?: false
         } ?: false
     }
 
@@ -194,126 +196,145 @@ class TouchPilotAccessibilityService : AccessibilityService() {
     fun typeIntoFocusedField(text: String): Boolean {
         return useActiveRoot { root ->
             val focusedFromFocus = root.findFocus(AccessibilityNodeInfo.FOCUS_INPUT)
-            val focused = focusedFromFocus ?: findNode(root) { it.isFocused } ?: return@useActiveRoot false
-            try {
-                setNodeText(focused, text)
-            } finally {
-                focusedFromFocus?.recycleSafely()
+            if (focusedFromFocus != null) {
+                try {
+                    setNodeText(focusedFromFocus, text)
+                } finally {
+                    focusedFromFocus.recycleSafely()
+                }
+            } else {
+                root.useFoundNode({ it.isFocused }) { focused ->
+                    setNodeText(focused, text)
+                } ?: false
             }
         } ?: false
     }
 
     fun typeIntoNode(nodeId: String, text: String): Boolean {
         return useActiveRoot { root ->
-            val node = findNodeById(root, nodeId) ?: return@useActiveRoot false
-            if (!node.isEnabled || !node.isEditableTarget()) return@useActiveRoot false
-            node.performAction(AccessibilityNodeInfo.ACTION_FOCUS)
-            setNodeText(node, text)
+            root.useNodeById(nodeId) { node ->
+                if (!node.isEnabled || !node.isEditableTarget()) return@useNodeById false
+                node.performAction(AccessibilityNodeInfo.ACTION_FOCUS)
+                setNodeText(node, text)
+            } ?: false
         } ?: false
     }
 
     fun clearFocusedField(): Boolean {
         return useActiveRoot { root ->
             val focusedFromFocus = root.findFocus(AccessibilityNodeInfo.FOCUS_INPUT)
-            val focused = focusedFromFocus ?: findNode(root) { it.isFocused } ?: return@useActiveRoot false
-            if (!focused.isEnabled || !focused.isEditableTarget()) return@useActiveRoot false
-            try {
-                setNodeText(focused, "")
-            } finally {
-                focusedFromFocus?.recycleSafely()
+            if (focusedFromFocus != null) {
+                if (!focusedFromFocus.isEnabled || !focusedFromFocus.isEditableTarget()) {
+                    return@useActiveRoot false
+                }
+                try {
+                    setNodeText(focusedFromFocus, "")
+                } finally {
+                    focusedFromFocus.recycleSafely()
+                }
+            } else {
+                root.useFoundNode({ it.isFocused }) { focused ->
+                    if (!focused.isEnabled || !focused.isEditableTarget()) return@useFoundNode false
+                    setNodeText(focused, "")
+                } ?: false
             }
         } ?: false
     }
 
     fun clearNode(nodeId: String): Boolean {
         return useActiveRoot { root ->
-            val node = findNodeById(root, nodeId) ?: return@useActiveRoot false
-            if (!node.isEnabled || !node.isEditableTarget()) return@useActiveRoot false
-            node.performAction(AccessibilityNodeInfo.ACTION_FOCUS)
-            setNodeText(node, "")
+            root.useNodeById(nodeId) { node ->
+                if (!node.isEnabled || !node.isEditableTarget()) return@useNodeById false
+                node.performAction(AccessibilityNodeInfo.ACTION_FOCUS)
+                setNodeText(node, "")
+            } ?: false
         } ?: false
     }
 
     fun focusInput(text: String, nodeId: String, bounds: String, viewId: String): FocusResult {
         return useActiveRoot { root ->
-            val candidates: List<AccessibilityNodeInfo> = when {
-                nodeId.isNotBlank() -> {
-                    val node = findNodeById(root, nodeId)
-                        ?: return@useActiveRoot FocusResult(false, "No matching input target found.")
-                    listOf(node)
-                }
+            when {
+                nodeId.isNotBlank() -> root.useNodeById(nodeId) { node ->
+                    focusInputFromCandidates(listOf(node))
+                } ?: FocusResult(false, "No matching input target found.")
                 bounds.isNotBlank() -> {
                     val targetBounds = parseBounds(bounds)
                         ?: return@useActiveRoot FocusResult(false, "Invalid bounds format.")
-                    findAllNodes(root) { candidate ->
+                    root.useMatchingNodes({ candidate ->
                         val b = Rect()
                         candidate.getBoundsInScreen(b)
                         b == targetBounds
+                    }) { candidates ->
+                        focusInputFromCandidates(candidates)
                     }
                 }
-                viewId.isNotBlank() -> {
-                    findAllNodes(root) { candidate ->
-                        candidate.viewIdResourceName == viewId
-                    }
+                viewId.isNotBlank() -> root.useMatchingNodes({ candidate ->
+                    candidate.viewIdResourceName == viewId
+                }) { candidates ->
+                    focusInputFromCandidates(candidates)
                 }
-                else -> {
-                    findAllNodes(root) { candidate ->
-                        if (candidate.isEditable) {
-                            // Match editable fields by hint/label, not current typed content.
-                            val hint = candidate.hintText?.toString() ?: ""
-                            val desc = candidate.contentDescription?.toString() ?: ""
-                            hint.contains(text, ignoreCase = true) || desc.contains(text, ignoreCase = true)
-                        } else {
-                            val label = candidate.text?.toString()
-                                ?: candidate.contentDescription?.toString()
-                                ?: ""
-                            label.contains(text, ignoreCase = true)
-                        }
+                else -> root.useMatchingNodes({ candidate ->
+                    if (candidate.isEditable) {
+                        // Match editable fields by hint/label, not current typed content.
+                        val hint = candidate.hintText?.toString() ?: ""
+                        val desc = candidate.contentDescription?.toString() ?: ""
+                        hint.contains(text, ignoreCase = true) || desc.contains(text, ignoreCase = true)
+                    } else {
+                        val label = candidate.text?.toString()
+                            ?: candidate.contentDescription?.toString()
+                            ?: ""
+                        label.contains(text, ignoreCase = true)
                     }
-                }
-            }
-
-            if (candidates.isEmpty()) {
-                return@useActiveRoot FocusResult(false, "No matching input target found.")
-            }
-
-            val editable = candidates.filter { it.isEditable }
-
-            when {
-                editable.isEmpty() -> FocusResult(false, "Target is not an editable input field.")
-                editable.size > 1 -> FocusResult(false, "Ambiguous input target.")
-                else -> {
-                    val node = editable[0]
-                    val ok = node.performAction(AccessibilityNodeInfo.ACTION_FOCUS) ||
-                        node.performAction(AccessibilityNodeInfo.ACTION_CLICK) ||
-                        tapNodeCenter(node)
-                    FocusResult(ok, if (ok) "focusInput" else "Failed to focus input.")
+                }) { candidates ->
+                    focusInputFromCandidates(candidates)
                 }
             }
         } ?: FocusResult(false, "No active window is available.")
     }
 
+    private fun focusInputFromCandidates(candidates: List<AccessibilityNodeInfo>): FocusResult {
+        if (candidates.isEmpty()) {
+            return FocusResult(false, "No matching input target found.")
+        }
+
+        val editable = candidates.filter { it.isEditable }
+
+        return when {
+            editable.isEmpty() -> FocusResult(false, "Target is not an editable input field.")
+            editable.size > 1 -> FocusResult(false, "Ambiguous input target.")
+            else -> {
+                val node = editable[0]
+                val ok = node.performAction(AccessibilityNodeInfo.ACTION_FOCUS) ||
+                    node.performAction(AccessibilityNodeInfo.ACTION_CLICK) ||
+                    tapNodeCenter(node)
+                FocusResult(ok, if (ok) "focusInput" else "Failed to focus input.")
+            }
+        }
+    }
+
     fun scroll(forward: Boolean): Boolean {
         return useActiveRoot { root ->
             val action = scrollAction(forward)
-            val scrollable = findNode(root) { candidate ->
+            root.useFoundNode({ candidate ->
                 candidate.isScrollable || candidate.actionList.any { it.id == action }
-            } ?: return@useActiveRoot false
-            scrollable.performAction(action)
+            }) { scrollable ->
+                scrollable.performAction(action)
+            } ?: false
         } ?: false
     }
 
     fun scrollNode(nodeId: String, forward: Boolean): Boolean {
         return useActiveRoot { root ->
-            val target = findNodeById(root, nodeId) ?: return@useActiveRoot false
-            val action = scrollAction(forward)
-            // Walk up the tree until we find an ancestor that actually accepts the
-            // scroll action. Some apps mark a list item as scrollable through its
-            // parent ListView/RecyclerView rather than on the item itself.
-            walkUpFrom(target) { current ->
-                (current.isScrollable || current.actionList.any { it.id == action }) &&
-                    current.performAction(action)
-            }
+            root.useNodeById(nodeId) { target ->
+                val action = scrollAction(forward)
+                // Walk up the tree until we find an ancestor that actually accepts the
+                // scroll action. Some apps mark a list item as scrollable through its
+                // parent ListView/RecyclerView rather than on the item itself.
+                walkUpFrom(target) { current ->
+                    (current.isScrollable || current.actionList.any { it.id == action }) &&
+                        current.performAction(action)
+                }
+            } ?: false
         } ?: false
     }
 
@@ -464,47 +485,14 @@ class TouchPilotAccessibilityService : AccessibilityService() {
         }
     }
 
-    private fun findNode(
-        node: AccessibilityNodeInfo,
-        predicate: (AccessibilityNodeInfo) -> Boolean
-    ): AccessibilityNodeInfo? = node.findNodeRecycling(predicate)
-
-    private fun findAllNodes(
-        node: AccessibilityNodeInfo,
-        predicate: (AccessibilityNodeInfo) -> Boolean
-    ): List<AccessibilityNodeInfo> {
-        val result = mutableListOf<AccessibilityNodeInfo>()
-        node.collectNodesRecycling(predicate, result)
-        return result
+    private fun containsText(node: AccessibilityNodeInfo, text: String): Boolean {
+        return node.useFoundNode({ candidate ->
+            val label = candidate.text?.toString()
+                ?: candidate.contentDescription?.toString()
+                ?: ""
+            label.contains(text, ignoreCase = true)
+        }) { true } != null
     }
-
-    private fun findNodeById(root: AccessibilityNodeInfo, nodeId: String): AccessibilityNodeInfo? {
-        if (!nodeId.matches(Regex("\\d+(?:\\.\\d+)*"))) return null
-
-        var current: AccessibilityNodeInfo = root
-        val path = nodeId.split(".").mapNotNull { it.toIntOrNull() }
-        if (path.firstOrNull() != 0) return null
-
-        for (index in path.drop(1)) {
-            var next: AccessibilityNodeInfo? = null
-            for (childIndex in 0 until current.childCount) {
-                val child = current.getChild(childIndex) ?: continue
-                if (childIndex == index) {
-                    next = child
-                } else {
-                    child.recycleSafely()
-                }
-            }
-            if (next == null) {
-                if (current !== root) current.recycleSafely()
-                return null
-            }
-            current = next
-        }
-
-        return current
-    }
-
     private fun clickNodeOrParent(node: AccessibilityNodeInfo): Boolean {
         return walkUpFrom(node) { current ->
             current.isClickable && current.performAction(AccessibilityNodeInfo.ACTION_CLICK)
@@ -596,15 +584,6 @@ class TouchPilotAccessibilityService : AccessibilityService() {
             .mapNotNull { it.trim().takeIf(String::isNotBlank)?.toIntOrNull() }
         if (values.size != 4) return null
         return Rect(values[0], values[1], values[2], values[3])
-    }
-
-    private fun containsText(node: AccessibilityNodeInfo, text: String): Boolean {
-        return findNode(node) { candidate ->
-            val label = candidate.text?.toString()
-                ?: candidate.contentDescription?.toString()
-                ?: ""
-            label.contains(text, ignoreCase = true)
-        } != null
     }
 
     private companion object {

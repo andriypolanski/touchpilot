@@ -1,6 +1,7 @@
 package dev.touchpilot.app.tools
 
 import dev.touchpilot.app.tools.targets.ClearTextTarget
+import dev.touchpilot.app.tools.targets.DragTarget
 import dev.touchpilot.app.tools.targets.ScrollTarget
 import dev.touchpilot.app.tools.targets.SwipeDirection
 import dev.touchpilot.app.tools.targets.SwipeTarget
@@ -276,6 +277,34 @@ object AndroidToolCatalog {
                 "timeout_ms" to "Maximum wait for the keyboard to disappear after dismissal."
             ),
             requiredArguments = emptySet()
+        ),
+        ToolSpec(
+            name = "drag_and_drop",
+            description = "Press and hold a source element, then drag it onto a destination and release. " +
+                "Use for reordering list rows, moving home-screen widgets/icons, or drag-to-target " +
+                "surfaces where a plain tap or swipe cannot pick the item up. Resolve source and " +
+                "destination from text, node_id, bounds, view_id, or content description, or supply " +
+                "explicit start/end coordinates. Fails safely when either endpoint is ambiguous or not found.",
+            risk = ToolRisk.MEDIUM,
+            arguments = mapOf(
+                DragTarget.SourceTextArg to "Visible text or content description of the element to pick up.",
+                DragTarget.SourceNodeIdArg to "Stable source node_id from observe_screen.",
+                DragTarget.SourceBoundsArg to "Source bounds from observe_screen as left,top,right,bottom.",
+                DragTarget.SourceViewIdArg to "Source viewIdResourceName from observe_screen.",
+                DragTarget.SourceContentDescriptionArg to "Source content description.",
+                DragTarget.DestinationTextArg to "Visible text or content description of the drop destination.",
+                DragTarget.DestinationNodeIdArg to "Stable destination node_id from observe_screen.",
+                DragTarget.DestinationBoundsArg to "Destination bounds from observe_screen as left,top,right,bottom.",
+                DragTarget.DestinationViewIdArg to "Destination viewIdResourceName from observe_screen.",
+                DragTarget.DestinationContentDescriptionArg to "Destination content description.",
+                DragTarget.StartXArg to "Optional drag start x in screen pixels (coordinate mode).",
+                DragTarget.StartYArg to "Optional drag start y in screen pixels (coordinate mode).",
+                DragTarget.EndXArg to "Optional drag end x in screen pixels (coordinate mode).",
+                DragTarget.EndYArg to "Optional drag end y in screen pixels (coordinate mode).",
+                DragTarget.HoldArg to "Optional pickup dwell in milliseconds before travel begins.",
+                DragTarget.DurationArg to "Optional travel duration in milliseconds.",
+            ),
+            requiredArguments = emptySet()
         )
     )
 
@@ -415,6 +444,23 @@ object AndroidToolCatalog {
 
         if (name == "scroll_to_element") {
             ScrollToElement.validate(args)?.let { return it }
+        }
+
+        if (name == "drag_and_drop") {
+            val hasCoordinates = DragTarget.hasAnyCoordinate(args)
+            val hasSource = DragTarget.hasSource(args)
+            val hasDestination = DragTarget.hasDestination(args)
+            if (hasCoordinates) {
+                DragTarget.validateCoordinates(args)?.let { return it }
+                if (hasSource || hasDestination) {
+                    return "drag_and_drop takes either coordinates or source/destination selectors, not both"
+                }
+            } else if (!hasSource || !hasDestination) {
+                return "drag_and_drop requires a source and a destination selector " +
+                    "(source_*/destination_*) or explicit start_x/start_y/end_x/end_y coordinates"
+            }
+            DragTarget.validateBounds(args)?.let { return it }
+            DragTarget.validateTimings(args)?.let { return it }
         }
 
         if (name == "find_element") {

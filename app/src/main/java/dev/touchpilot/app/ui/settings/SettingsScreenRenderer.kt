@@ -140,6 +140,7 @@ class SettingsScreenRenderer(
         when (panel) {
             SettingsPanel.SKILLS -> renderSkillsPanel()
             SettingsPanel.TOOLS -> renderToolsPanel()
+            SettingsPanel.HELP -> renderHelpPanel()
             SettingsPanel.MCP -> renderMcpPanel()
             SettingsPanel.CLOUD -> renderCloudPanel()
             SettingsPanel.RUNTIME -> renderRuntimePanel()
@@ -281,6 +282,51 @@ class SettingsScreenRenderer(
             getLastFocusInputArgs = getLastFocusInputArgs,
             setLastFocusInputArgs = setLastFocusInputArgs
         ).render()
+    }
+
+    private fun renderHelpPanel() {
+        contentRoot.addView(
+            activity.summaryCard(
+                title = "Known limitations",
+                value = "Updated for real-device beta",
+                chipText = "v1",
+                chipAccent = true,
+            )
+        )
+
+        contentRoot.addView(
+            activity.timelineCard(
+                title = "Before filing a bug",
+                body = "Use this order: verify your OEM profile, then check known issue and workaround, then file an issue only if no existing entry applies."
+            )
+        )
+        contentRoot.addView(
+            activity.formLabel("Common real-device limitations")
+        )
+        contentRoot.addView(
+            activity.timelineCard(
+                title = "Accessibility tree sparsity",
+                body = "Some custom drawables / WebView-heavy screens do not expose full accessibility elements. Retry with `wait_for_idle` and OCR fallback."
+            )
+        )
+        contentRoot.addView(
+            activity.timelineCard(
+                title = "Background service suspension",
+                body = "Some OEMs aggressively stop AccessibilityService in background. Disable battery optimization and verify permissions before long automation sessions."
+            )
+        )
+        contentRoot.addView(
+            activity.timelineCard(
+                title = "Settings panel targets",
+                body = "Certain OEM `Settings` launchers open a generic panel. Use explicit navigation paths (open app settings manually first) and report launcher package details."
+            )
+        )
+        contentRoot.addView(
+            activity.timelineCard(
+                title = "If missing",
+                body = "Open the Device Compatibility Checklist and append a result log under `docs/compatibility/results/` so this page can be updated."
+            )
+        )
     }
 
     private fun renderRecordingPanel() {
@@ -849,6 +895,7 @@ class SettingsScreenRenderer(
                 id = when (panel) {
                     SettingsPanel.SKILLS -> R.id.settings_panel_skills_button
                     SettingsPanel.TOOLS -> R.id.settings_panel_tools_button
+                    SettingsPanel.HELP -> R.id.settings_panel_help_button
                     SettingsPanel.MCP -> R.id.settings_panel_mcp_button
                     SettingsPanel.CLOUD -> R.id.settings_panel_cloud_button
                     SettingsPanel.RUNTIME -> R.id.settings_panel_runtime_button

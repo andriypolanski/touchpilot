@@ -29,6 +29,7 @@ class ToolVerifier(
             "scroll" -> verifyScroll(result, before, after)
             "scroll_to_element" -> verifyScrollToElement(args, after)
             "swipe" -> verifySwipe(result, before, after)
+            "drag_and_drop" -> verifyDragAndDrop(result, before, after)
             "press_back" -> verifyChangedOrFocused(before, after, "press_back")
             "press_home" -> verifyHome(after)
             "recent_apps" -> verifyChangedOrFocused(before, after, "recent_apps")
@@ -233,6 +234,26 @@ class ToolVerifier(
         } else {
             ToolVerificationResult.Failed(
                 reason = "swipe reported success but screen content did not change",
+                data = mapOf("screen_changed" to "false")
+            )
+        }
+    }
+
+    private fun verifyDragAndDrop(
+        result: ToolResult,
+        before: ScreenContext,
+        after: ScreenContext,
+    ): ToolVerificationResult {
+        val resultChanged = result.data["screen_changed"]?.toBooleanStrictOrNull()
+        val changed = resultChanged ?: !sameSnapshot(before, after)
+        return if (changed) {
+            ToolVerificationResult.Passed(
+                reason = "drag_and_drop changed visible screen content",
+                data = mapOf("screen_changed" to "true")
+            )
+        } else {
+            ToolVerificationResult.Failed(
+                reason = "drag_and_drop reported success but screen content did not change",
                 data = mapOf("screen_changed" to "false")
             )
         }

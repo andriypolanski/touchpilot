@@ -97,6 +97,7 @@ class AndroidToolRetryPolicy(
                 // scroll budget for no benefit.
                 "scroll_to_element" to ToolRetryConfig(maxAttempts = 1, retryable = false),
                 "swipe" to action,
+                "drag_and_drop" to action,
                 "press_back" to action,
                 "press_home" to action,
                 "recent_apps" to action,

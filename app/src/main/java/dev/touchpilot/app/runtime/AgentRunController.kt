@@ -304,6 +304,7 @@ class AgentRunController(
                                     )
                                     showChat()
                                 }
+                                else -> Unit
                             }
                             refreshStepTimeline(stepTimeline, timelineBuilder.snapshot, false)
                         }

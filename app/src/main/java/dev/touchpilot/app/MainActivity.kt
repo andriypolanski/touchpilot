@@ -97,6 +97,7 @@ class MainActivity : Activity() {
     private var focusSelectorIndex: Int = 0
     private val conversation = mutableListOf<ChatEvent>()
     private lateinit var demonstrationManager: dev.touchpilot.app.demonstration.DemonstrationSessionManager
+    private var localSkillIds: Set<String> = emptySet()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -597,6 +598,7 @@ class MainActivity : Activity() {
             contentRoot = contentRoot,
             preferences = preferences,
             skills = skillRegistry.allSkills(),
+            isLocalSkill = { skillId -> localSkillIds.contains(skillId.lowercase()) },
             localModelRuntime = localModelRuntime,
             activeSettingsPanel = { navigationController.activeSettingsPanel },
             openSettingsPanel = navigationController::openSettingsPanel,
@@ -818,6 +820,7 @@ class MainActivity : Activity() {
     }
 
     private fun reloadSkills() {
+        localSkillIds = skillFileStore.skillIds()
         val skillLoad = skillStore.load()
         skillRegistry = SkillRegistry(skillLoad.skills, SharedPreferencesSkillStore(preferences))
         skillLoad.invalid.forEach { invalid ->

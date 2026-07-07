@@ -14,6 +14,7 @@ import com.google.android.material.card.MaterialCardView
 import dev.touchpilot.app.R
 import dev.touchpilot.app.agent.AgentProviderMode
 import dev.touchpilot.app.localinference.LiteRtCommandModelRuntime
+import dev.touchpilot.app.logging.DeveloperLogEntry
 import dev.touchpilot.app.mcp.ExternalCapabilityInvoker
 import dev.touchpilot.app.mcp.ExternalCapabilityInvokeResult
 import dev.touchpilot.app.mcp.LocalExtensionTool
@@ -65,6 +66,7 @@ class SettingsScreenRenderer(
     private val contentRoot: LinearLayout,
     private val preferences: SharedPreferences,
     private val skills: List<Skill>,
+    private val isLocalSkill: (String) -> Boolean = { false },
     private val localModelRuntime: LiteRtCommandModelRuntime,
     private val toolExecutionController: ToolExecutionController,
     private val activeSettingsPanel: () -> SettingsPanel?,
@@ -163,6 +165,7 @@ class SettingsScreenRenderer(
                 activity.timelineCard(
                     title = "Active skill scope",
                     body = buildString {
+                        appendLine("Source: ${skillSourceLabel(active)}")
                         appendLine(SkillDetailFormatter.displayDescription(active))
                         appendLine()
                         append("${active.allowedTools.size} allowed tools")
@@ -182,11 +185,15 @@ class SettingsScreenRenderer(
 
         skills.forEach { skill ->
             val enabled = isSkillEnabled(skill.id)
-            val description = SkillDetailFormatter.displayDescription(skill)
+            val description = buildString {
+                append(SkillDetailFormatter.displayDescription(skill).ifBlank { "No description provided" })
+                appendLine()
+                append("${skillSourceLabel(skill)} · ${skill.allowedTools.size} allowed tool${if (skill.allowedTools.size == 1) "" else "s"}")
+            }
             contentRoot.addView(
                 skillSelectRow(
                     title = skill.title,
-                    subtitle = description.ifBlank { "No description provided" },
+                    subtitle = description.trimEnd(),
                     badge = SkillDetailFormatter.formatLabel(skill.risk),
                     enabled = enabled,
                     selected = selectedSkillId() == skill.id,
@@ -605,6 +612,8 @@ class SettingsScreenRenderer(
         if (extensionTools.isEmpty()) {
             contentRoot.addView(activity.timelineCard("No extension tools registered", "Add a local MCP tool above to store it here."))
         } else {
+            val extensionAuditEntries = ToolExecutionLog.recentEntries()
+                .filter { it.type == "capability" && it.source == "local_extension" }
             extensionTools.forEach { tool ->
                 val extensionTarget = ExternalCapabilityTarget(
                     kind = ExternalCapabilityKind.LOCAL_EXTENSION,
@@ -613,10 +622,12 @@ class SettingsScreenRenderer(
                 )
                 val grant = permissionStore.findGrant(extensionTarget)
                 val requiredFlags = policy.requiredFlagsForExtension(tool.manifest.featureFlags)
+                val extensionLastUsed = lastExtensionUsageFor(tool, extensionAuditEntries)
                 contentRoot.addView(
                     activity.timelineCard(
                         title = tool.name,
                         body = buildString {
+                            appendLine("Permission scope: local extension")
                             appendLine(tool.description.ifBlank { "No description provided." })
                             appendLine("api_version: ${tool.manifest.apiVersion}")
                             appendLine("Endpoint: ${tool.endpoint}")
@@ -630,6 +641,7 @@ class SettingsScreenRenderer(
                                     appendLine("- $flag: ${permissionLabel(grant?.allowsFeature(flag) == true)}")
                                 }
                             }
+                            appendLine("Last used: ${extensionLastUsed}")
                         },
                         actionHint = "Grant extension permissions",
                         onClick = {
@@ -809,6 +821,20 @@ class SettingsScreenRenderer(
     }
 
     private fun permissionLabel(granted: Boolean): String = if (granted) "granted" else "denied (default)"
+
+    private fun skillSourceLabel(skill: Skill): String {
+        return if (isLocalSkill(skill.id.lowercase())) "Imported" else "Bundled"
+    }
+
+    private fun lastExtensionUsageFor(tool: LocalExtensionTool, entries: List<DeveloperLogEntry>): String {
+        val match = entries.firstOrNull {
+            it.type == "capability" &&
+                it.source == "local_extension" &&
+                it.target.contains(tool.endpoint, ignoreCase = true) &&
+                it.target.contains(tool.name, ignoreCase = true)
+        } ?: return "never"
+        return "recent at ${DeveloperLogEntry.formatShortTimestamp(match.timestampMillis)}"
+    }
 
     private fun invokeExternalCapability(
         endpoint: String,

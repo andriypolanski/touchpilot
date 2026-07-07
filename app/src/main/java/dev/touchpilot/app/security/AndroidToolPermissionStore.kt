@@ -23,9 +23,15 @@ class AndroidToolPermissionStore(
         }
 
         fun displayLabel(toolName: String): String {
-            val spec = AndroidToolCatalog.initialTools.firstOrNull { it.name == toolName }
-            return spec?.description?.ifBlank { null }
-                ?: toolName.replace('_', ' ')
+            val normalized = toolName.trim().replace('_', ' ')
+            if (normalized.isBlank()) return ""
+            return normalized.split(' ')
+                .filter { it.isNotBlank() }
+                .joinToString(" ") { word ->
+                    word.replaceFirstChar { char ->
+                        if (char.isLowerCase()) char.titlecase() else char.toString()
+                    }
+                }
         }
     }
 

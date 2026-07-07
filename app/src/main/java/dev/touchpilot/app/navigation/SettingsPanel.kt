@@ -9,6 +9,10 @@ enum class SettingsPanel(val label: String, val intro: String) {
         "Tools",
         "Inspect and use the built-in Android tools from one place."
     ),
+    HELP(
+        "Help",
+        "Real-device troubleshooting, known limitations, and reporting guidance."
+    ),
     MCP(
         "MCP",
         "Connect TouchPilot to an external MCP HTTP JSON-RPC server to call its tools."
